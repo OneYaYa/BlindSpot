@@ -1,0 +1,10 @@
+.godot/
+.env
+__pycache__/
+*.pyc
+coverage.xml
+.pytest_cache/
+build/
+dist/
+artifacts/
+*.spec
