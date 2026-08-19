@@ -1,178 +1,96 @@
-# Blindspot Relay
+<p align="center">
+  <strong>简体中文</strong> · <a href="README.md">English</a>
+</p>
 
-**简体中文** | [English](README.md)
+<div align="center">
+  <img src="icon.svg" width="152" alt="盲区中继信号图标">
+  <h1>盲区中继 / BLINDSPOT RELAY</h1>
+  <p><strong>你看得见系统，他看得见现场。任何一方都无法独自逃生。</strong></p>
+  <p>一款关于信任、信息差与受损通讯的单人 AI 对话惊悚解谜游戏。</p>
+</div>
 
- Blindspot是一个单人对话解密游戏。玩家是远程调度员，掌握 K-17 设施的全局遥测；受困技术员只知道当前房间里能亲眼确认的事。玩家需要通过文字中继交叉核对两边的信息，向他下达单步指令并授权执行，最终恢复电网与冷却回路并撤离。
+[![《盲区中继》游戏预告](assets/branding/blindspot-gameplay-preview.gif)](assets/branding/blindspot-gameplay-trailer.mp4)
 
-这个版本专门按独立开发范围收敛：使用同一角色身份的基础、受伤、专注监听和获救释然四张透明像素姿态；五个房间背景、地标、视频信号效果和状态反馈均由 Godot 实时组合。
+<p align="center">
+  <a href="assets/branding/blindspot-gameplay-trailer.mp4"><strong>▶ 观看 / 下载游戏预告</strong></a>
+</p>
 
-## 已实现
+<p align="center">
+  <a href="https://github.com/OneYaYa/BlindSpot/releases"><strong>⬇ WINDOWS DEMO / RELEASES</strong></a>
+</p>
 
-- 1 名 NPC、5 个房间、8 类动作、氧气与电力两项资源
-- 单格携带槽、模块化电网匹配与冷却压力谜题、危险操作单次明确确认
-- 相位保险芯完整修复、应急电芯代价旁路、便携氧气罐三种资源路线选择
-- 正常成功、代价成功、失败三类结局和一键重开；不同路线会改变事故证据、责任调查与关系收束
-- 完整本地规则回复；不启动网络服务也能通关
-- 可选 OpenAI 对话与候选动作（模型由 `.env` 配置）
-- 谜题线索拆分为调度员独占遥测与 NPC 当前房间的局部观察
-- 不显示完整动作清单；明确自然语言指令只生成一个待授权候选
-- 左侧 `NEXT` 按权威任务状态给出当前目标和输入示例，跳过关键步骤或抵达中央舱时会提供纠偏与双路线说明
-- 输入框上方提供随阶段更新的关键词名片；点击只插入术语，玩家仍可编辑完整指令并自主发送
-- 右侧快捷交流只显示宽泛意图，点击后再发送对应的自然问句
-- 远程画面随 NPC 所在房间切换，并带像素化转场
-- 首次启动包含约 4 秒的中继抢接动画：冷启动、信号丢失、重试、横向闪断、轻微震动和最终锁定
-- 开场期间拦截输入，可用 Enter、Space、Escape 或鼠标点击跳过；任务重开不会重复播放
-- 呼吸、负伤、紧张、低氧、通讯、等待授权、操作成功/失败与终局均有动态视觉反馈
-- 电网恢复、泄漏封闭和逃生舱解锁会直接改变对应房间的灯光与环境特效
-- 林岚始终用受困者的口语回应，不会说出“白名单、候选、授权、目标 ID”等界面或实现术语
-- 模型只读取 NPC 的局部投影，只能从当前动作白名单中提议
-- 独立上下文编译器先按 NPC、房间、任务和启用动作做硬过滤，再按角色/场景/信念/记忆/导演分区装箱
-- 亲眼事实、调度员说法和主观记忆均带稳定来源 ID；模型返回实际引用 ID，服务端生成可回放 Prompt hash
-- 世界状态始终由 Godot 本地核心验证和修改
-- 玩家自述的时间跳跃不会被当成世界事实；本地与在线 NPC 都会拒绝“过了一年”等无依据叙述并保持当前位置
-- 最近 10 条玩家/NPC 对话、最多 14 条单局事件记忆、姓名/承诺、五段个人经历、信任、恐惧与信念状态
-- 信任与恐惧会影响危险操作意愿；安抚可准备聚焦细扫，连续纯对话会推进通讯耗氧周期
-- 可点击的远端/现场双轨线索工作台，帮助玩家自己拼合证据而不自动给出答案
-- 否定、条件、疑问和含糊指令不会生成可执行候选
-- 按房间、电力与氧气动态分层的无线电环境音，以及电网闭锁、旁路烧毁、密封释放和发射专属音效
-- 字号、音量、静音、减少动态、在线/本地模式、安全动作 Enter 快速授权设置与窄屏布局
-- 三阶段渐进式界面、房间独立视觉地标、四套角色姿态、现场特写框和压力调节视觉反馈
-- 在线失败两次后自动熔断 30 秒；等待期间可以取消
-- 本地代理限制浏览器 Origin、按来源限流并通过 `/health` 提供无敏感信息的运行指标
+## 一个屏幕，两种真相
 
-## 直接运行
+K-17 设施正在失效。你是远程调度员，能读取残缺的全局遥测；林岚是一名左肩受伤、被困在隔离舱门后的维护技术员，他只能报告眼前亲自确认的东西。
 
-用 Godot 4.6 或更高版本打开 `project.godot`，运行主场景即可。命令行示例：
+你的记录不完整，他面前的标签已经烧毁。你们必须在通讯盲区两端交叉核对信息，并决定哪些风险值得让另一个真人承担。
 
-```powershell
-& "C:\Users\ethanypan\Desktop\Godot_v4.6.3-stable_win64.exe\Godot_v4.6.3-stable_win64_console.exe" --path .
-```
+这不是摆在谜题旁边的聊天机器人——对话本身就是谜题。
 
-不启动 Python 服务时，输入文字会自动使用本地 NPC 规则。离线解析支持房间名、颜色、路线物品以及 I/B/P 压力调节器等中文目标别名，因此离线模式仍包含完整玩法。含糊的“接一根线”或“调一个阀”会被要求澄清，不会替玩家猜答案。
+## 你说过的话会留到结局
 
-操作：
+林岚记住的不只是玩家姓名。安抚、欺骗、鲁莽命令、谨慎修复、承诺与关键失误都会成为本局结构化事件，改变他的信任、危险行动意愿以及获救后的最后一句话。
 
-- 鼠标：选择快捷询问、发送文本、授权或拒绝单个行动候选
-- 关键词名片：点击将难输的设施、物品或接头名称插入输入框，不会自动发送
-- `Enter`：发送输入；输入框为空且存在安全候选时快速授权
-- `Ctrl+T`：聚焦输入框
-- `Ctrl+R`：确认后重新开始任务
-- 右上角 `SETTINGS`：调整字号、音频、动态效果和在线 AI 模式
+五段个人经历会在不同房间自然浮现。完整撤离能够保存事故遥测并重启责任调查；应急撤离或许救得了人，却可能永久烧毁证据。失败后留下的只有持续载波。
 
-## 启用在线 AI
+## AI 可以说话，但不能改写现实
 
-API Key 只保存在本机 Python 进程中，不会进入 Godot 客户端或提交到版本库。
+- **自然对话**：用自己的话询问伤势、环境、回忆、恐惧或下一步。
+- **真实信息差**：调度员与技术员分别掌握关键线索的一半。
+- **玩家授权**：AI 最多提出一个本地合法动作，没有你的确认就不能执行。
+- **确定性后果**：房间、资源、谜题、信任、错误与结局始终由 Godot 管理。
+- **无 Key 仍可玩**：在线模型不可用时，本地角色规则仍能完成整起事故。
+- **可重玩证据**：线路读数、压力标定、路线与事故签名会在重开后变化。
 
-```powershell
-Copy-Item .env.example .env
-# 编辑 .env，填入 OPENAI_API_KEY
-python server.py
-```
+## 五个房间，一道黑暗中的声音
 
-然后正常启动 Godot。客户端默认请求 `http://127.0.0.1:8787/api/npc/decide`。项目也会在项目级 `.env` 缺失时读取上一层工作区已有的 `.env`，但独立发布时建议使用项目自己的配置。
+1. 抢接受损中继，与林岚建立联系。
+2. 恢复调度员独占遥测，同时避免把隐藏答案直接泄露给他。
+3. 把烧毁的现场接头标签与远端电气记录交叉核对。
+4. 从两个不完整视角重建冷却压力顺序。
+5. 在完整修复与应急旁路之间选择，并承担被保全或被毁掉的证据后果。
 
-代理使用 OpenAI Responses API、低推理强度和严格 JSON Schema。输出固定为：
+每个房间都有独立视觉地标与无线电环境层。林岚会随氧气、信任、行动与结局切换基础、监听、受伤和释然姿态。
 
-```text
-reply / intent / action / target / mood / referenced_ids
-```
+## 试玩 Demo
 
-任何不存在的动作、错误目标或失效候选都会在 Python 和 Godot 两层被降级或拒绝。网络失败、超时或返回异常时，客户端自动切换到本地规则。
+### Windows：目前最适合公开发布
 
-对话历史由游戏本地显式管理，Responses API 请求保持 `store: false`。详见 `docs/AI_AND_PRIVACY.md`。
+公开 v0.5.0 安装包目前还没有上传。发布后进入 [GitHub Releases](https://github.com/OneYaYa/BlindSpot/releases)，下载最新的 `BlindspotRelay-Windows-*.zip`，完整解压后运行 `BlindspotRelay.exe`。发行包可以包含 Godot 运行时与本地代理，玩家不需要安装 Godot 或 Python。公开包不得内置个人 API Key；没有在线模型时，本地规则仍可完整通关。
 
-## 架构
+### 浏览器：计划中的低门槛版本
 
-```text
-玩家文本 ──> 配置的 OpenAI 模型 / 本地回复规则
-                 │
-                 └──> 角色回复 + 最多一个白名单候选
-                                      │
-                                  玩家授权
-                                      │
-                                      v
-                           MissionSimulation.propose()
-                                      │
-                         ┌────────────┴────────────┐
-                      安全动作                 危险动作
-                         │                 候选卡明确确认
-                         └────────────┬────────────┘
-                                      v
-                              更新权威状态与结局
-```
+Godot 可以把这个 GDScript 工程导出为 WebAssembly，Render 也可以承载它。但 Blindspot 还需要增加专用 Web 导出、同源 HTTPS API、浏览器安全的请求线程配置和音频降级，之后才适合公开宣传网址。推荐目标是一个 Render Web Service 同时提供 Godot 网页文件和 Python AI 中继，让模型密钥始终留在服务端。
 
-在模型调用之前，`NpcContextCompiler` 会把权威模拟器给出的局部投影编译为六个独立预算区：角色与场景、已知信念、主观记忆、关系、导演意图和最近对话。未验证的调度员读数不会升级成世界事实；每轮 trace 只进入本地调试环，不进入角色 Prompt。模型返回后还有一层确定性质量门，拦截虚假通信故障话术、已确认事实遗漏和引用事实矛盾，并把触发原因写入 `quality_guard`。详见 [AI NPC 技术升级说明](docs/AI_NPC_TECH_UPGRADE.md)。
+经过核对的上线步骤与当前阻碍见 [Demo 发布方案](docs/DEMO_DISTRIBUTION.md)。
 
-关键文件：
+<details>
+<summary><strong>从源码运行</strong></summary>
 
-- `scripts/core/mission_simulation.gd`：权威状态机、关系机制、资源与结局
-- `scripts/core/puzzles/power_routing_puzzle.gd`：电网读数谜题模块
-- `scripts/core/puzzles/coolant_pressure_puzzle.gd`：可逆压力调节谜题模块
-- `data/mission.json`：房间、物品、资源成本和任务数据
-- `scripts/main.gd`：核心、UI、NPC 服务之间的唯一编排层
-- `scripts/services/npc_decision_service.gd`：HTTP、白名单过滤和本地降级
-- `scripts/services/npc_context_compiler.gd`：最小权限过滤、上下文分区、场景模式、导演意图与 trace
-- `scripts/services/procedural_audio.gd`：运行时生成无线电环境音与事件提示音
-- `scripts/ui/mission_console_ui.gd`：纯代码终端界面
-- `scripts/ui/signal_boot_overlay.gd`：全屏中继抢接、信号闪断与震动开场
-- `scripts/ui/npc_portrait.gd`：五个像素房间、转场和状态动画渲染器
-- `assets/portraits/lin_lan_*_pixel.png`：林岚的基础、受伤、监听与释然透明像素姿态
-- `server.py`：不向客户端暴露密钥的本地 OpenAI 代理
-
-## 测试
+需要 Godot 4.6 或更高版本。
 
 ```powershell
-python -m unittest discover -s tests/python -v
-python tests/python/ai_experience_eval.py
-# 使用真实模型跑 12 条中文体验评测（会产生 API 费用）
-# 如需估算成本，先设置 BLINDSPOT_INPUT_USD_PER_M 与 BLINDSPOT_OUTPUT_USD_PER_M
-python tests/python/ai_experience_eval.py --live
-
-$godot = "C:\path\to\Godot_v4.6.3-stable_win64_console.exe"
-& $godot --headless --path . --editor --quit
-& $godot --headless --path . res://tests/godot/mission_simulation_test.tscn
-& $godot --headless --path . res://tests/godot/main_integration_test.tscn
-
-# 可选：生成五个房间和五种角色状态的视觉对照图
-& $godot --path . res://tests/godot/pixel_scene_visual_test.tscn
-# 可选：生成主控制台与已拼合线索工作台截图
-& $godot --path . res://tests/godot/main_visual_test.tscn
+git clone https://github.com/OneYaYa/BlindSpot.git
+cd BlindSpot
+& "C:\path\to\Godot_v4.6.3-stable_win64_console.exe" --path .
 ```
 
-启动 `python server.py` 后还可以运行真实在线链路测试；这会产生一次 API 调用：
+不启动 Python 服务时，游戏会自动使用本地 NPC 规则。要测试可选在线对话，可将 `.env.example` 复制为 `.env`，填入专用 `OPENAI_API_KEY`，运行 `python server.py` 后再启动 Godot。
 
-```powershell
-& $godot --headless --path . res://tests/godot/online_service_test.tscn
-```
+</details>
 
-当前验证基线：Python 27 项测试通过；Godot 核心 250 项检查通过；Godot 主流程集成 100 项检查通过。2026-08-19 使用配置的 `gpt-5.6-terra` 完成 12 条中文在线评测：人格一致率与事实引用正确率 100%，谜题泄漏、动作误提议、复读、术语泄漏、在线失败和本地回退均为 0；P50 2.45 秒，P95 2.91 秒。小样本结果只作为当前版本基线，重新部署或更换模型后应复测。
+<details>
+<summary><strong>架构与验证</strong></summary>
 
-## 通关方法（答案每局变化）
+Blindspot 使用 Godot 4.6 权威模拟器、最小权限 NPC 上下文编译器、本地规则回退，以及可选的 Python Responses API 中继。调度员独占遥测与隐藏谜题答案会在模型调用前过滤；模型返回的动作还必须通过 Python 校验、Godot 复验与玩家授权。
 
-先检查中继控制室的遥测台。完整修复路线需要带上相位保险芯，前往主电网舱检查三只接头，把现场读数与远端闭环读数拼合；也可以在中央交汇舱改拿应急旁路电芯，跳过接头谜题换取必然的代价撤离。便携氧气罐可留到返程时补气，但同样占用唯一携带槽。电网恢复后拿起低温密封剂，前往冷却回廊：远端给出当前与目标压力，林岚读取 I/B/P 三只调节器各自的增减量，玩家需要组合出目标值。压力锁定并密封裂口后即可前往逃生舱。重开任务会生成新的线路读数、压力标定和事故签名。
+当前回归基线：
 
-## 导出 Windows 构建
+- Python：27 项测试
+- Godot 权威模拟：250 项检查
+- Godot 主流程集成：100 项检查
+- 中文在线 AI 体验集：12 个用例，覆盖人格、事实、泄漏、动作、复读、延迟、请求、失败与回退
 
-项目提供一键发行脚本。它把 Godot 4.6.3 GUI 运行时、编译后的 PCK、Python AI
-代理和自动进程管理启动器封装到同一个 ZIP；玩家解压后只需双击
-`BlindspotRelay.exe`，不需要安装 Godot、Python 或运行库。
+技术资料：[AI NPC 技术升级](docs/AI_NPC_TECH_UPGRADE.md) · [AI 与隐私](docs/AI_AND_PRIVACY.md) · [发布清单](docs/RELEASE_CHECKLIST.md)
 
-```powershell
-python -m pip install --user pyinstaller
-& .\packaging\build_windows_release.ps1 -EmbedApiCredential
-```
-
-产物写入 `build/releases/BlindspotRelay-Windows-v0.5.0.zip`。加入
-`-EmbedApiCredential` 会把当前 `.env` 配置打进本地代理，满足小范围测试玩家
-解压即用在线 AI；桌面程序中的密钥仍可能被提取，因此公开发行不得使用个人或
-高额度 Key，应改用带鉴权、TLS、限流和账单告警的托管代理。详见
-`packaging/DISTRIBUTOR_SECURITY_NOTICE.md`。
-
-对最终 ZIP 执行隔离解压、文件哈希、真实在线对话、入口启动和进程清理测试：
-
-```powershell
-python .\packaging\smoke_test_release.py .\build\releases\BlindspotRelay-Windows-v0.5.0.zip
-```
-
-不加 `-EmbedApiCredential` 时不会内置 `.env`，全部玩法仍可使用本地 NPC 完整
-通关。正式发布前请逐项完成 `docs/RELEASE_CHECKLIST.md`。
+</details>

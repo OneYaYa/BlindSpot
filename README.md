@@ -1,130 +1,96 @@
-# Blindspot Relay
+<p align="center">
+  <a href="README.zh-CN.md">简体中文</a> · <strong>English</strong>
+</p>
 
-[简体中文](README.zh-CN.md) | **English**
+<div align="center">
+  <img src="icon.svg" width="152" alt="Blindspot Relay signal icon">
+  <h1>BLINDSPOT RELAY</h1>
+  <p><strong>You see the system. He sees the room. Neither of you can escape alone.</strong></p>
+  <p>A single-player AI conversation thriller about trust, incomplete information, and one damaged relay.</p>
+</div>
 
-Blindspot Relay is a single-player conversation-driven puzzle game. You are a remote dispatcher with access to the K-17 facility's global telemetry; the trapped technician can only confirm what he can see in his current room. Cross-check both sides of the relay, issue one-step instructions, authorize their execution, restore the power and cooling systems, and escape.
+[![Blindspot Relay gameplay trailer](assets/branding/blindspot-gameplay-preview.gif)](assets/branding/blindspot-gameplay-trailer.mp4)
 
-The project is deliberately scoped for solo development. Four identity-consistent transparent pixel poses cover Lin Lan's base, hurt, listening, and relieved states, while Godot composes five room backgrounds, landmarks, signal effects, and state feedback at runtime.
+<p align="center">
+  <a href="assets/branding/blindspot-gameplay-trailer.mp4"><strong>▶ Watch / download the gameplay trailer</strong></a>
+</p>
 
-## Features
+<p align="center">
+  <a href="https://github.com/OneYaYa/BlindSpot/releases"><strong>⬇ WINDOWS DEMO / RELEASES</strong></a>
+</p>
 
-- One NPC, five rooms, eight action categories, and two resources: oxygen and power
-- A single carrying slot, modular power-routing puzzle, coolant-pressure puzzle, and explicit confirmation for hazardous actions
-- Three resource routes: a full repair with the phase fuse core, a costly emergency-cell bypass, or a portable oxygen reserve
-- Standard success, costly success, and failure endings with route-specific evidence, investigation, and relationship consequences
-- Complete deterministic local dialogue rules, so the game remains fully playable offline
-- Optional OpenAI-powered dialogue and action proposals
-- Puzzle clues split between dispatcher-only telemetry and the NPC's local observations
-- Natural-language commands produce at most one action candidate for player authorization
-- A contextual `NEXT` panel, editable keyword chips, and broad quick-conversation prompts
-- Room-specific remote video, a pixelated transition, and a skippable four-second relay-acquisition intro
-- Visual feedback for breathing, injury, stress, low oxygen, communication, authorization, actions, and endings
-- A least-privilege NPC context compiler with source IDs, prompt traces, relationship state, and deterministic post-generation validation
-- Room-, power-, and oxygen-aware radio layers with dedicated lock, bypass, seal, and launch cues
-- Progressive disclosure that reveals telemetry, clue tools, and authorization only when each becomes relevant
-- Font size, audio, reduced-motion, online/offline AI, quick authorization, and narrow-screen settings
+## One Screen. Two Truths.
 
-## Run the Game
+K-17 is failing. You are the remote dispatcher with access to damaged facility telemetry. Lin Lan, an injured maintenance technician trapped behind sealed bulkheads, can only report what is directly in front of him.
 
-Open `project.godot` with Godot 4.6 or later and run the main scene. From PowerShell:
+Your records are incomplete. His labels are burned away. Talk across the blind spot, compare both sides of the evidence, and decide which risks another human being should take.
+
+This is not a chatbot sitting beside a puzzle. Conversation is the puzzle.
+
+## What You Say Survives the Run
+
+Lin Lan remembers more than your name. Reassurance, deception, reckless orders, careful repairs, promises, and costly mistakes become structured events that can change his trust, his willingness to act, and what he says after the escape.
+
+Five personal memories surface in different rooms. A clean rescue preserves the accident evidence and reopens the investigation. An emergency escape may save a life while destroying the proof. Failure leaves only the carrier signal.
+
+## The AI Can Speak. It Cannot Rewrite Reality.
+
+- **Natural conversation** — ask about injuries, surroundings, memories, fears, or the next step in your own words.
+- **Information asymmetry** — the dispatcher and technician hold different halves of every critical clue.
+- **Player authorization** — the AI can propose one locally valid action; it cannot execute anything without you.
+- **Deterministic consequences** — Godot owns rooms, resources, puzzles, trust, mistakes, and endings.
+- **No-key fallback** — the complete incident remains playable through local character rules when the online model is unavailable.
+- **Replayable evidence** — cable readings, pressure calibration, routes, and the accident signature change between runs.
+
+## Five Rooms. One Voice in the Dark.
+
+1. Acquire the damaged relay and establish contact.
+2. Recover dispatcher-only telemetry without leaking it to Lin Lan.
+3. Cross-check burned cable labels against remote electrical records.
+4. Reconstruct the coolant pressure sequence from two incomplete viewpoints.
+5. Choose a full repair or an emergency bypass, then live with the evidence you saved—or destroyed.
+
+Every room has its own visual landmark and radio layer. Lin Lan shifts between neutral, listening, injured, and relieved performances as oxygen, trust, actions, and the ending change.
+
+## Play the Demo
+
+### Windows — recommended public build today
+
+The public v0.5.0 package has not been uploaded yet. When it is available, open [GitHub Releases](https://github.com/OneYaYa/BlindSpot/releases), download the newest `BlindspotRelay-Windows-*.zip`, extract it, and run `BlindspotRelay.exe`. The package is designed to include the Godot runtime and local relay, so players do not need Godot or Python. Public packages should never embed a personal API key; local fallback keeps the entire mission playable.
+
+### Browser — planned low-friction build
+
+Godot can export this GDScript project to WebAssembly, and Render can host it. Blindspot still needs a dedicated Web export, same-origin HTTPS API routing, browser-safe request threading, and an audio fallback before a public URL is honest to advertise. The recommended target is one Render Web Service that serves both the Godot export and the Python relay, keeping the model key server-side.
+
+See [Demo Distribution](docs/DEMO_DISTRIBUTION.md) for the checked rollout plan and current blockers.
+
+<details>
+<summary><strong>Run from source</strong></summary>
+
+Requires Godot 4.6 or newer.
 
 ```powershell
+git clone https://github.com/OneYaYa/BlindSpot.git
+cd BlindSpot
 & "C:\path\to\Godot_v4.6.3-stable_win64_console.exe" --path .
 ```
 
-Without the Python service, all text input is handled by the local NPC rules. The offline parser understands room names, colors, route items, and the I/B/P pressure-regulator aliases. Ambiguous requests are rejected instead of being guessed.
+The game automatically uses local NPC rules when the Python relay is not running. To test optional online dialogue, copy `.env.example` to `.env`, add a dedicated `OPENAI_API_KEY`, and run `python server.py` before launching Godot.
 
-### Controls
+</details>
 
-- Mouse: choose quick prompts, send text, and authorize or reject an action candidate
-- Keyword chips: insert facility, item, or connector names without sending the message
-- `Enter`: send text; with an empty input and a safe candidate, authorize it
-- `Ctrl+T`: focus the input field
-- `Ctrl+R`: restart the mission after confirmation
-- `SETTINGS`: adjust text, audio, motion, and AI mode
+<details>
+<summary><strong>Architecture and validation</strong></summary>
 
-## Optional Online AI
+Blindspot uses a Godot 4.6 authoritative simulation, a least-privilege NPC context compiler, a local rule-based fallback, and an optional Python Responses API relay. Dispatcher telemetry and hidden puzzle answers are filtered before model calls. Every returned action is checked by Python, checked again by Godot, and held for player authorization.
 
-The API key stays in a local Python process and is never embedded in the Godot client or committed to the repository.
+Current regression baseline:
 
-```powershell
-Copy-Item .env.example .env
-# Add OPENAI_API_KEY to .env
-python server.py
-```
+- Python: 27 tests
+- Godot simulation: 250 checks
+- Godot integration: 100 checks
+- Chinese live AI experience set: 12 cases covering persona, grounding, leakage, action safety, repetition, latency, usage, failures, and fallback
 
-The client calls `http://127.0.0.1:8787/api/npc/decide` by default. The proxy uses the OpenAI Responses API, low reasoning effort, and a strict JSON Schema:
+Technical notes: [AI NPC Upgrade](docs/AI_NPC_TECH_UPGRADE.md) · [AI and Privacy](docs/AI_AND_PRIVACY.md) · [Release Checklist](docs/RELEASE_CHECKLIST.md)
 
-```text
-reply / intent / action / target / mood / referenced_ids
-```
-
-Unknown actions, invalid targets, and stale candidates are downgraded or rejected by both Python and Godot. Network errors automatically fall back to the local rules. Conversation history is managed locally and API requests use `store: false`. See [AI and Privacy](docs/AI_AND_PRIVACY.md).
-
-## Architecture
-
-```text
-Player text ──> online model / local dialogue rules
-                       │
-                       └──> NPC reply + at most one allowlisted candidate
-                                                     │
-                                              player authorization
-                                                     │
-                                                     v
-                                      MissionSimulation.propose()
-                                                     │
-                                      deterministic state update
-```
-
-Before every model call, `NpcContextCompiler` packages six budgeted sections: character and scene, known beliefs, subjective memory, relationship, director intent, and recent dialogue. Dispatcher claims never become world facts without verification. The authoritative simulator always owns items, resources, puzzles, and endings.
-
-Key files:
-
-- `scripts/core/mission_simulation.gd`: authoritative state machine, relationships, resources, and endings
-- `scripts/core/puzzles/`: power-routing and coolant-pressure puzzle modules
-- `data/mission.json`: rooms, items, costs, and mission data
-- `scripts/main.gd`: orchestration between simulation, UI, and NPC services
-- `scripts/services/npc_decision_service.gd`: HTTP, allowlist filtering, and local fallback
-- `scripts/services/npc_context_compiler.gd`: least-privilege context compilation and traces
-- `scripts/services/procedural_audio.gd`: runtime radio ambience and event sounds
-- `scripts/ui/mission_console_ui.gd`: code-driven terminal interface
-- `scripts/ui/signal_boot_overlay.gd`: relay-acquisition intro
-- `scripts/ui/npc_portrait.gd`: room renderer, transitions, and state animation
-- `assets/portraits/lin_lan_*_pixel.png`: base, hurt, listening, and relieved character poses
-- `server.py`: local OpenAI proxy that keeps credentials out of the client
-
-## Tests
-
-```powershell
-python -m unittest discover -s tests/python -v
-python tests/python/ai_experience_eval.py
-# Real 12-case Chinese AI experience evaluation; spends API requests
-# Set BLINDSPOT_INPUT_USD_PER_M and BLINDSPOT_OUTPUT_USD_PER_M for cost estimates
-python tests/python/ai_experience_eval.py --live
-
-$godot = "C:\path\to\Godot_v4.6.3-stable_win64_console.exe"
-& $godot --headless --path . --editor --quit
-& $godot --headless --path . res://tests/godot/mission_simulation_test.tscn
-& $godot --headless --path . res://tests/godot/main_integration_test.tscn
-```
-
-The online service smoke test makes a real API request:
-
-```powershell
-& $godot --headless --path . res://tests/godot/online_service_test.tscn
-```
-
-## Mission Tips
-
-Inspect the telemetry console first. For a full repair, take the phase fuse core to the main power room and combine its three local connector readings with the remote closed-loop values. The emergency cell offers a costly bypass. After power is restored, take the cryogenic sealant to the cooling corridor and combine the remote target pressure with Lin Lan's I/B/P regulator readings. Seal the leak, then reach the escape pod. Each restart generates new circuit readings, pressure calibration, and an accident signature.
-
-## Windows Build
-
-The release script packages the Godot runtime, compiled PCK, Python AI proxy, and process launcher into one ZIP:
-
-```powershell
-python -m pip install --user pyinstaller
-& .\packaging\build_windows_release.ps1 -EmbedApiCredential
-```
-
-The archive is written to `build/releases/BlindspotRelay-Windows-v0.5.0.zip`. Embedded credentials are only suitable for limited private testing; public builds should use an authenticated hosted proxy with TLS, rate limits, and billing alerts. See `packaging/DISTRIBUTOR_SECURITY_NOTICE.md` and `docs/RELEASE_CHECKLIST.md`.
+</details>
