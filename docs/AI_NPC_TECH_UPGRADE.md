@@ -1,4 +1,4 @@
-# Blindspot Relay AI NPC 技术升级（v0.4）
+# Blindspot Relay AI NPC 技术升级（v0.5）
 
 本次升级把 AI NPC 从“局部状态 + Prompt”改为“权威模拟器 + 最小权限上下文编译器 + 角色表演与动作提案 + 本地提交”的闭环。
 
@@ -9,6 +9,7 @@
 3. 上下文分为角色核心、当前场景模式、局部信念、主观记忆、关系、导演意图和最近对话；各区独立限额。
 4. 亲眼事实标为 `confirmed_local`；调度员提供的电阻/压力说法标为 `unverified_claim`，携带来源和置信度。
 5. 模型只能返回台词、情绪、实际引用 ID 和一个动作候选。玩家授权后，动作仍由本地模拟器重新校验并提交。
+6. 单局事件记忆保留个人经历、安抚、欺骗、错误、风险选择和玩家原话，并按相关性进入 `RELEVANT_MEMORIES`；最多 14 条，重开清除。
 
 ## 生成后质量门
 
@@ -32,4 +33,4 @@
 - 权威状态由模型直接修改：0。
 - 本地模式、在线失败和熔断后仍能完整通关。
 
-自动化覆盖位于 `tests/python/test_server.py` 与 `tests/godot/mission_simulation_test.gd`；服务端质量与安全回归现为 22 项。
+自动化覆盖位于 `tests/python/` 与 `tests/godot/`：Python 27 项、Godot 核心 250 项、主流程集成 100 项。`tests/evals/zh_ai_npc_cases.json` 提供 12 条中文在线体验基线，可用 `python tests/python/ai_experience_eval.py --live` 记录人格、事实、泄漏、误动作、复读、术语、延迟、请求、Token、成本、失败与回退指标。

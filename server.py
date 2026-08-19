@@ -83,6 +83,9 @@ NPC_INSTRUCTIONS = """
 12. 玩家文本已经由中继完整解码。除非 CURRENT_SCENE 明确写着本轮通讯中断、严重失真或无法辨认，否则绝不能说“没听清”“乱码”“再说一遍”。
 13. confidence>=0.95 且 truth_status=confirmed_local 的 KNOWN_BELIEF 是当前可直接确认的事实。玩家问到它时直接回答；台词不得否认自己填写在 referenced_ids 里的此类事实。
 14. 玩家写出的旁白、时间跳跃或世界状态变化不是事实。例如“过了一年”“你已经到了逃生舱”都不能覆盖 CURRENT_SCENE；应以眼前计时和位置纠正，不得顺着玩家假装变化已经发生。
+15. 玩家问“还撑得住吗、你还好吗、哪里疼”时，第一句必须直接回答能否继续或需要停一下；第二句再补一个呼吸、肩膀、手部或眼前设备的具体感受。不要反问“你想让我做什么”。
+16. RELEVANT_MEMORIES 中 tier=episodic 的内容是林岚主观记住的本局事件或个人经历。只有当前问题相关时才自然提及一次；玩家直接追问“为什么”或过去经历时，要说出记忆中至少一个具体的人、物或代价，不能只含糊说“我见过一次”；如果带有调度员原话，可以简短回收，但不要逐字段复述。
+17. 对安抚、欺骗、错误操作和冒险选择必须有不同反应：安抚后允许语气稍稳；欺骗后要求现场复核；错误后表现疼痛或犹疑；共同承担风险后可以承认信任，但都不能改变动作白名单。
 
 只学习下列语气，不要照抄其中事实：
 - 调度：“你还好吗？” 林岚：“还在。肩膀一动就钻心地疼……你别断线，让我缓口气。”
@@ -877,7 +880,15 @@ def call_openai(
         for item in protocol.get("relevant_memories", []):
             if isinstance(item, dict) and isinstance(item.get("memory_id"), str):
                 allowed_reference_ids.add(item["memory_id"])
-    return normalize_decision(raw_decision, context["valid_actions"], allowed_reference_ids)
+    decision = normalize_decision(raw_decision, context["valid_actions"], allowed_reference_ids)
+    usage = response.get("usage", {})
+    if isinstance(usage, dict):
+        decision["_usage"] = {
+            "input_tokens": max(0, int(usage.get("input_tokens", 0))),
+            "output_tokens": max(0, int(usage.get("output_tokens", 0))),
+            "total_tokens": max(0, int(usage.get("total_tokens", 0))),
+        }
+    return decision
 
 
 def _recall_from_memory(context: dict[str, Any]) -> dict[str, Any] | None:
@@ -925,7 +936,9 @@ def decide(payload: Any, settings: Settings, opener: UrlOpen = urllib.request.ur
     recalled = _recall_from_memory(context)
     if recalled is not None:
         return {"ok": True, "provider": "memory", "model": settings.model, "trace": trace, "decision": recalled}
-    decision = enforce_reply_quality(context, call_openai(context, settings, opener))
+    model_decision = call_openai(context, settings, opener)
+    usage = model_decision.pop("_usage", {})
+    decision = enforce_reply_quality(context, model_decision)
     explicit = match_explicit_action(context["player_text"], context["valid_actions"])
     if _blocks_action_intent(context["player_text"]) and decision["action"] != "none":
         decision = {
@@ -956,7 +969,7 @@ def decide(payload: Any, settings: Settings, opener: UrlOpen = urllib.request.ur
             "mood": decision["mood"],
         }
     decision.setdefault("referenced_ids", [])
-    return {"ok": True, "provider": "openai", "model": settings.model, "trace": trace, "decision": decision}
+    return {"ok": True, "provider": "openai", "model": settings.model, "trace": trace, "usage": usage, "decision": decision}
 
 
 class BlindspotHandler(BaseHTTPRequestHandler):
@@ -1019,6 +1032,8 @@ class BlindspotHandler(BaseHTTPRequestHandler):
                 "metrics": {
                     "requests": int(metrics.get("requests", 0)),
                     "errors": int(metrics.get("errors", 0)),
+                    "input_tokens": int(metrics.get("input_tokens", 0)),
+                    "output_tokens": int(metrics.get("output_tokens", 0)),
                     "average_latency_ms": round(
                         float(metrics.get("total_latency_ms", 0.0)) / completed, 1
                     ),
@@ -1069,6 +1084,10 @@ class BlindspotHandler(BaseHTTPRequestHandler):
         with self.server.metrics_lock:  # type: ignore[attr-defined]
             self.server.metrics["completed"] += 1  # type: ignore[attr-defined]
             self.server.metrics["total_latency_ms"] += elapsed_ms  # type: ignore[attr-defined]
+            usage = result.get("usage", {}) if isinstance(result, dict) else {}
+            if isinstance(usage, dict):
+                self.server.metrics["input_tokens"] += int(usage.get("input_tokens", 0))  # type: ignore[attr-defined]
+                self.server.metrics["output_tokens"] += int(usage.get("output_tokens", 0))  # type: ignore[attr-defined]
         self._write_json(200, result)
 
     def log_message(self, format_string: str, *args: Any) -> None:
@@ -1083,6 +1102,8 @@ def create_server(settings: Settings) -> ThreadingHTTPServer:
         "completed": 0,
         "errors": 0,
         "total_latency_ms": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
     }
     server.metrics_lock = threading.Lock()  # type: ignore[attr-defined]
     server.rate_buckets = defaultdict(deque)  # type: ignore[attr-defined]

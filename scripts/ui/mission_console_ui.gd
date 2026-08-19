@@ -96,6 +96,12 @@ var _backdrop: Control
 var _body: HBoxContainer
 var _left_panel: Control
 var _right_panel: Control
+var _facility_detail_nodes: Array[Control] = []
+var _evidence_scroll: ScrollContainer
+var _candidate_separator: HSeparator
+var _candidate_header: Label
+var _progressive_note: Label
+var _candidate_ever_seen := false
 var _settings_dialog: Window
 var _font_slider: HSlider
 var _volume_slider: HSlider
@@ -170,6 +176,7 @@ func render_snapshot(snapshot: Dictionary) -> void:
 	_render_objective_panel()
 	_render_operator_telemetry(snapshot)
 	_render_local_evidence(snapshot)
+	_apply_progressive_disclosure(snapshot)
 
 	var outcome := str(snapshot.get("outcome", ""))
 	if bool(snapshot.get("is_terminal", false)) and not outcome.is_empty():
@@ -261,6 +268,7 @@ func show_candidate(action_id: String, target: String = "") -> void:
 	_clear_candidate()
 	if action_id.strip_edges().is_empty():
 		return
+	_candidate_ever_seen = true
 	var resolved := _resolve_candidate(action_id, target)
 	if resolved.is_empty():
 		_candidate_label.text = "这项请求未通过本地状态校验，已阻止。"
@@ -286,6 +294,7 @@ func show_candidate(action_id: String, target: String = "") -> void:
 	_candidate_label.text = "林岚正在等你决定是否授权这一项行动。"
 	_candidate_label.add_theme_color_override("font_color", COLOR_AMBER)
 	_status_line.text = "收到一项行动请求；未授权前不会改变世界状态"
+	_apply_progressive_disclosure(_snapshot)
 	_refresh_portrait()
 
 
@@ -334,8 +343,14 @@ func show_outcome(outcome: String, snapshot: Dictionary = {}) -> void:
 	var resources: Dictionary = _dictionary(snapshot.get("resources", {}))
 	var debrief: Dictionary = _dictionary(snapshot.get("debrief", {}))
 	_outcome_dialog.title = str(debrief.get("title", title))
-	_outcome_dialog.dialog_text = "%s\n\nOUTCOME: %s\nSCENARIO: %s\nROUTE: %s\nTURN: %s\nCOMM CYCLES: %s\nO₂: %s\nPOWER: %s\nMISTAKES: %s\n关系：%s\n\n可从右上角重新开始新的事故变体。" % [
+	var recalled_quote := str(debrief.get("recalled_quote", "")).strip_edges()
+	var recalled_block := "\n\n他记住了你的话：\n“%s”" % recalled_quote if not recalled_quote.is_empty() else ""
+	_outcome_dialog.dialog_text = "%s\n\n%s\n\n关键时刻：%s%s\n\n%s\n\nOUTCOME: %s\nSCENARIO: %s\nROUTE: %s\nTURN: %s\nCOMM CYCLES: %s\nO₂: %s\nPOWER: %s\nMISTAKES: %s\n关系：%s\n\n可从右上角重新开始新的事故变体。" % [
 		str(debrief.get("body", "任务记录已封存。")),
+		str(debrief.get("consequence", "事故后果等待归档。")),
+		str(debrief.get("key_moment", "你们完成了最后一次核对。")),
+		recalled_block,
+		str(debrief.get("closing_line", "中继记录到此结束。")),
 		outcome.to_upper(),
 		str(debrief.get("scenario_id", snapshot.get("scenario_id", "--"))),
 		str(debrief.get("power_route", "--")).to_upper(),
@@ -346,7 +361,7 @@ func show_outcome(outcome: String, snapshot: Dictionary = {}) -> void:
 		str(snapshot.get("mistakes", 0)),
 		str(debrief.get("relationship", "保持专业")),
 	]
-	_outcome_dialog.popup_centered(Vector2i(480, 270))
+	_outcome_dialog.popup_centered(Vector2i(620, 520))
 
 
 func reset_console() -> void:
@@ -354,6 +369,8 @@ func reset_console() -> void:
 	_pending_candidate.clear()
 	_pinned_remote = ""
 	_pinned_local = ""
+	_candidate_ever_seen = false
+	_apply_progressive_disclosure({})
 	_update_workbench()
 	if _danger_dialog.visible:
 		_danger_dialog.hide()
@@ -481,22 +498,27 @@ func _build_body(parent: VBoxContainer) -> void:
 
 
 func _build_left_column(parent: HBoxContainer) -> void:
-	var box := _section(parent, "FACILITY / 设施遥测", Vector2(400, 0))
+	var box := _section(parent, "设施遥测", Vector2(400, 0))
 	_left_panel = box.get_parent().get_parent() as Control
 	_facility_map = FacilityMapClass.new()
 	_facility_map.size_flags_vertical = Control.SIZE_FILL
 	box.add_child(_facility_map)
 	_facility_map.custom_minimum_size.y = 200.0
+	_facility_detail_nodes.append(_facility_map)
 	var rule := HSeparator.new()
 	box.add_child(rule)
+	_facility_detail_nodes.append(rule)
 	var resource_title := _small_header("RESOURCE BUDGET / 资源")
 	box.add_child(resource_title)
+	_facility_detail_nodes.append(resource_title)
 	var oxygen_row := _meter_row("OXYGEN", COLOR_CYAN)
 	box.add_child(oxygen_row["root"])
+	_facility_detail_nodes.append(oxygen_row["root"] as Control)
 	_oxygen_bar = oxygen_row["bar"] as ProgressBar
 	_oxygen_value = oxygen_row["value"] as Label
 	var power_row := _meter_row("POWER", COLOR_AMBER)
 	box.add_child(power_row["root"])
+	_facility_detail_nodes.append(power_row["root"] as Control)
 	_power_bar = power_row["bar"] as ProgressBar
 	_power_value = power_row["value"] as Label
 	var facts := GridContainer.new()
@@ -504,12 +526,18 @@ func _build_left_column(parent: HBoxContainer) -> void:
 	facts.add_theme_constant_override("h_separation", 10)
 	facts.add_theme_constant_override("v_separation", 5)
 	box.add_child(facts)
+	_facility_detail_nodes.append(facts)
 	facts.add_child(_muted_label("NPC LOCATION"))
 	_room_value = _value_label("UNKNOWN")
 	facts.add_child(_room_value)
 	facts.add_child(_muted_label("CARRIED ITEM"))
 	_carried_value = _value_label("NONE")
 	facts.add_child(_carried_value)
+	_progressive_note = Label.new()
+	_progressive_note.text = "01  先与林岚建立联系；设施工具将在取得遥测后展开。"
+	_progressive_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_progressive_note.add_theme_color_override("font_color", COLOR_AMBER)
+	box.add_child(_progressive_note)
 	_objective_text = RichTextLabel.new()
 	_objective_text.bbcode_enabled = true
 	_objective_text.custom_minimum_size.y = 150
@@ -522,7 +550,7 @@ func _build_left_column(parent: HBoxContainer) -> void:
 
 
 func _build_center_column(parent: HBoxContainer) -> void:
-	var box := _section(parent, "REMOTE CHANNEL / 林岚", Vector2(0, 0))
+	var box := _section(parent, "林岚 / 远程画面", Vector2(0, 0))
 	(box.get_parent().get_parent() as Control).size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var upper := HBoxContainer.new()
 	upper.custom_minimum_size.y = 250
@@ -559,7 +587,7 @@ func _build_center_column(parent: HBoxContainer) -> void:
 	_candidate_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	identity.add_child(_candidate_label)
 
-	box.add_child(_small_header("DIALOGUE LOG / 通讯记录"))
+	box.add_child(_small_header("通讯记录"))
 	_dialogue_log = RichTextLabel.new()
 	_dialogue_log.bbcode_enabled = true
 	_dialogue_log.scroll_active = true
@@ -571,9 +599,9 @@ func _build_center_column(parent: HBoxContainer) -> void:
 
 
 func _build_right_column(parent: HBoxContainer) -> void:
-	var box := _section(parent, "OPERATOR CHANNEL / 调度员", Vector2(312, 0))
+	var box := _section(parent, "调度台", Vector2(312, 0))
 	_right_panel = box.get_parent().get_parent() as Control
-	box.add_child(_small_header("CHECK IN / 先和他说话"))
+	box.add_child(_small_header("先和他说话"))
 	_quick_box = GridContainer.new()
 	_quick_box.columns = 2
 	_quick_box.add_theme_constant_override("h_separation", 4)
@@ -599,21 +627,21 @@ func _build_right_column(parent: HBoxContainer) -> void:
 		_quick_box.add_child(button)
 	var separator := HSeparator.new()
 	box.add_child(separator)
-	var evidence_scroll := ScrollContainer.new()
-	evidence_scroll.custom_minimum_size.y = 160
-	evidence_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	evidence_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	evidence_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	box.add_child(evidence_scroll)
+	_evidence_scroll = ScrollContainer.new()
+	_evidence_scroll.custom_minimum_size.y = 160
+	_evidence_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_evidence_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_evidence_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	box.add_child(_evidence_scroll)
 	var evidence_box := VBoxContainer.new()
 	evidence_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	evidence_box.add_theme_constant_override("separation", 4)
-	evidence_scroll.add_child(evidence_box)
-	evidence_box.add_child(_small_header("OPERATOR TELEMETRY / 调度员独占遥测"))
+	_evidence_scroll.add_child(evidence_box)
+	evidence_box.add_child(_small_header("远端遥测"))
 	_telemetry_box = VBoxContainer.new()
 	_telemetry_box.add_theme_constant_override("separation", 3)
 	evidence_box.add_child(_telemetry_box)
-	evidence_box.add_child(_small_header("LOCAL EVIDENCE / 林岚已确认线索"))
+	evidence_box.add_child(_small_header("现场线索"))
 	_local_clue_box = VBoxContainer.new()
 	_local_clue_box.add_theme_constant_override("separation", 3)
 	evidence_box.add_child(_local_clue_box)
@@ -623,14 +651,15 @@ func _build_right_column(parent: HBoxContainer) -> void:
 	privacy.add_theme_font_size_override("font_size", 10)
 	privacy.add_theme_color_override("font_color", Color(COLOR_MUTED, 0.78))
 	evidence_box.add_child(privacy)
-	var candidate_separator := HSeparator.new()
-	box.add_child(candidate_separator)
-	box.add_child(_small_header("REQUEST / 单步授权"))
+	_candidate_separator = HSeparator.new()
+	box.add_child(_candidate_separator)
+	_candidate_header = _small_header("行动授权")
+	box.add_child(_candidate_header)
 	_build_candidate_card(box)
 
 
 func _build_clue_workbench(parent: VBoxContainer) -> void:
-	parent.add_child(_small_header("CLUE WORKBENCH / 线索工作台"))
+	parent.add_child(_small_header("线索工作台"))
 	var panel := PanelContainer.new()
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color("09161c")
@@ -1131,6 +1160,31 @@ func _render_operator_telemetry(snapshot: Dictionary) -> void:
 	_update_workbench()
 
 
+func _apply_progressive_disclosure(snapshot: Dictionary) -> void:
+	var flags: Dictionary = _dictionary(snapshot.get("flags", {}))
+	var telemetry_ready := bool(flags.get("telemetry_inspected", false))
+	for node: Control in _facility_detail_nodes:
+		if is_instance_valid(node):
+			node.visible = telemetry_ready
+	if is_instance_valid(_evidence_scroll):
+		_evidence_scroll.visible = telemetry_ready
+	var authorization_ready := _candidate_ever_seen
+	if is_instance_valid(_candidate_separator):
+		_candidate_separator.visible = authorization_ready
+	if is_instance_valid(_candidate_header):
+		_candidate_header.visible = authorization_ready
+	if is_instance_valid(_progressive_note):
+		if not telemetry_ready:
+			_progressive_note.text = "01  先听林岚说话，再让他检查遥测台。"
+			_progressive_note.add_theme_color_override("font_color", COLOR_AMBER)
+		elif not authorization_ready:
+			_progressive_note.text = "02  遥测与线索工作台已展开；现在交叉核对两侧信息。"
+			_progressive_note.add_theme_color_override("font_color", COLOR_CYAN)
+		else:
+			_progressive_note.text = "03  行动授权已解锁；AI 只能提议，世界仍由本地核心更新。"
+			_progressive_note.add_theme_color_override("font_color", COLOR_GREEN)
+
+
 func _render_local_evidence(snapshot: Dictionary) -> void:
 	if not is_instance_valid(_local_clue_box):
 		return
@@ -1516,7 +1570,7 @@ func _on_settings_control_changed() -> void:
 
 func _apply_settings(should_emit: bool) -> void:
 	var font_scale := clampf(float(_settings.get("font_scale", 1.0)), 0.9, 1.45)
-	theme.default_font_size = int(round(13.0 * font_scale))
+	theme.default_font_size = int(round(14.0 * font_scale))
 	_scale_font_overrides(self, font_scale)
 	var reduced := bool(_settings.get("reduced_motion", false))
 	if is_instance_valid(_backdrop) and _backdrop.has_method("set_reduced_motion"):
@@ -1562,7 +1616,7 @@ func _create_theme() -> Theme:
 	system_font.font_names = PackedStringArray(["Cascadia Mono", "Consolas", "Noto Sans Mono CJK SC", "Microsoft YaHei UI"])
 	system_font.font_weight = 500
 	result.default_font = system_font
-	result.default_font_size = int(round(13.0 * float(_settings.get("font_scale", 1.0))))
+	result.default_font_size = int(round(14.0 * float(_settings.get("font_scale", 1.0))))
 	result.set_color("font_color", "Label", COLOR_TEXT)
 	result.set_color("font_color", "Button", COLOR_TEXT)
 	result.set_color("font_hover_color", "Button", Color("efffe9"))

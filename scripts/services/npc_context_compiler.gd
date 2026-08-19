@@ -34,7 +34,9 @@ func compile(
 	var clean_actions := _compile_actions(actions)
 	var recent_dialogue := _compile_history(history)
 	var known_beliefs := _compile_beliefs(local_state)
-	var relevant_memories := _compile_memories(memory)
+	var memory_source := memory.duplicate(true)
+	memory_source["events"] = _array(raw_context.get("event_memory", []))
+	var relevant_memories := _compile_memories(memory_source)
 	var relationship := {
 		"trust": clampi(int(local_state.get("trust", 50)), 0, 100),
 		"fear": clampi(int(local_state.get("fear", 35)), 0, 100),
@@ -253,6 +255,28 @@ func _compile_memories(memory: Dictionary) -> Array[Dictionary]:
 			"salience": 0.65,
 		})
 		promise_index += 1
+	var events: Array = _array(memory.get("events", []))
+	for index: int in range(events.size() - 1, -1, -1):
+		if result.size() >= MAX_MEMORY_ITEMS:
+			break
+		if not events[index] is Dictionary:
+			continue
+		var event_memory: Dictionary = events[index] as Dictionary
+		var summary := str(event_memory.get("summary", "")).strip_edges().left(180)
+		if summary.is_empty():
+			continue
+		var quote := str(event_memory.get("player_quote", "")).strip_edges().left(100)
+		var subjective := summary
+		if not quote.is_empty():
+			subjective += " 调度员当时说：‘%s’" % quote
+		result.append({
+			"memory_id": str(event_memory.get("memory_id", "event:%d" % index)).left(100),
+			"subjective_text": subjective,
+			"event_ref": str(event_memory.get("source_id", "turn:%d" % int(event_memory.get("turn", 0)))).left(100),
+			"tier": "episodic",
+			"salience": clampf(float(event_memory.get("importance", 0.6)), 0.1, 1.0),
+			"emotional_tag": str(event_memory.get("kind", "event")).left(40),
+		})
 	return result.slice(0, mini(MAX_MEMORY_ITEMS, result.size()))
 
 
@@ -282,6 +306,7 @@ func _director_intent(local_state: Dictionary, player_text: String) -> Dictionar
 	var urgency := "guidance"
 	var priority := 30
 	var preconditions: Array[String] = ["mission_active"]
+	var compact := player_text.replace(" ", "")
 	if oxygen <= 25:
 		goal = "优先让调度员理解低氧正在收紧选择，但不替其决定路线。"
 		urgency = "emergency"
@@ -292,6 +317,21 @@ func _director_intent(local_state: Dictionary, player_text: String) -> Dictionar
 		urgency = "urgent"
 		priority = 80
 		preconditions = ["fear>=70"]
+	elif compact.contains("骗你的") or compact.contains("刚才是骗你") or compact.contains("其实我不知道"):
+		goal = "明确表达信任受损，只接受可以现场复核的新信息，不立刻恢复亲近。"
+		urgency = "relationship_repair"
+		priority = 75
+		preconditions = ["deception_acknowledged"]
+	elif compact.contains("别怕") or compact.contains("我在") or compact.contains("慢一点"):
+		goal = "先回应调度员的安抚，再用一个呼吸、肩膀或手部细节说明自己是否稳定下来。"
+		urgency = "emotional_grounding"
+		priority = 60
+		preconditions = ["reassurance_received"]
+	elif compact.contains("记得什么") or compact.contains("以前") or compact.contains("为什么不猜"):
+		goal = "从相关情景记忆中说一段具体经历，并让它解释林岚当前的选择；不要一次倾倒全部身世。"
+		urgency = "character_reveal"
+		priority = 55
+		preconditions = ["relevant_memory_available"]
 	return {
 		"goal": goal,
 		"urgency": urgency,

@@ -46,6 +46,22 @@ func _ready() -> void:
 	_check(objective_text != null and objective_text.text.contains("输入指令 → AI 提出动作 → 右侧授权执行"), "left panel should explain the command and authorization loop")
 	_check(observation_text != null and observation_text.custom_minimum_size.y >= 126.0, "local observation should have a taller reading area")
 	var facility_map := ui.get("_facility_map") as Control
+	var evidence_scroll := ui.get("_evidence_scroll") as ScrollContainer
+	var candidate_header := ui.get("_candidate_header") as Label
+	var progressive_note := ui.get("_progressive_note") as Label
+	var facility_detail_nodes := ui.get("_facility_detail_nodes") as Array
+	_check(facility_detail_nodes.all(func(node: Variant) -> bool: return node is Control and not (node as Control).visible), "initial screen should collapse non-current facility telemetry")
+	_check(evidence_scroll != null and not evidence_scroll.visible, "clue workbench should stay collapsed before telemetry is obtained")
+	_check(candidate_header != null and not candidate_header.visible, "authorization explanation should stay collapsed before the first candidate")
+	_check(progressive_note != null and progressive_note.text.begins_with("01"), "initial progressive hint should focus on the NPC and current objective")
+	var telemetry_preview := (main.get("_snapshot") as Dictionary).duplicate(true)
+	var preview_flags := (telemetry_preview.get("flags", {}) as Dictionary).duplicate(true)
+	preview_flags["telemetry_inspected"] = true
+	telemetry_preview["flags"] = preview_flags
+	ui.call("render_snapshot", telemetry_preview)
+	_check(facility_map.visible and evidence_scroll.visible, "telemetry acquisition should reveal the facility and clue workbench")
+	_check(progressive_note.text.begins_with("02"), "telemetry acquisition should advance the progressive hint")
+	ui.call("render_snapshot", main.get("_snapshot") as Dictionary)
 	var map_links := facility_map.get("_links") as Array
 	var junction_routes := 0
 	var has_escape_route := false
@@ -172,6 +188,16 @@ func _ready() -> void:
 	_check(not (ui.get("_pending_candidate") as Dictionary).is_empty(), "validated model candidate should wait in the single authorization card")
 	var candidate_panel := ui.get("_candidate_panel") as PanelContainer
 	_check(candidate_panel != null and candidate_panel.visible, "authorization card should be visible for one validated candidate")
+	_check(candidate_header.visible, "the first valid candidate should reveal the authorization section")
+	var candidate_visual := portrait.call("get_debug_visual_state") as Dictionary
+	_check(str(candidate_visual.get("character_asset", "")).ends_with("lin_lan_listening_pixel.png"), "thinking or authorization should use the dedicated listening pose")
+	var stage_three_preview := (main.get("_snapshot") as Dictionary).duplicate(true)
+	var stage_three_flags := (stage_three_preview.get("flags", {}) as Dictionary).duplicate(true)
+	stage_three_flags["telemetry_inspected"] = true
+	stage_three_preview["flags"] = stage_three_flags
+	ui.call("render_snapshot", stage_three_preview)
+	_check(progressive_note.text.begins_with("03"), "telemetry plus the first candidate should unlock the final progressive stage")
+	ui.call("render_snapshot", main.get("_snapshot") as Dictionary)
 
 	(ui.get("_settings") as Dictionary)["quick_safe_actions"] = true
 	ui.call("_submit_message", "")
@@ -247,6 +273,14 @@ func _ready() -> void:
 	var low_oxygen_visual := portrait.call("get_debug_visual_state") as Dictionary
 	_check(str(low_oxygen_visual.get("condition", "")) == "low_oxygen", "low oxygen should switch the pixel character into hypoxia animation")
 	_check(is_equal_approx(float(low_oxygen_visual.get("oxygen", -1.0)), 20.0), "pixel HUD should receive the low oxygen value")
+	_check(str(low_oxygen_visual.get("character_asset", "")).ends_with("lin_lan_hurt_pixel.png"), "low oxygen should use the dedicated hurt pose")
+
+	var rescued_snapshot := low_oxygen_snapshot.duplicate(true)
+	rescued_snapshot["is_terminal"] = true
+	rescued_snapshot["outcome"] = "success"
+	ui.call("render_snapshot", rescued_snapshot)
+	var rescued_visual := portrait.call("get_debug_visual_state") as Dictionary
+	_check(str(rescued_visual.get("character_asset", "")).ends_with("lin_lan_relieved_pixel.png"), "successful rescue should use the dedicated relieved pose")
 
 	var terminal_snapshot := low_oxygen_snapshot.duplicate(true)
 	terminal_snapshot["is_terminal"] = true

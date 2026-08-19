@@ -62,7 +62,13 @@ func decide(context: Dictionary, player_text: String) -> Dictionary:
 		intent = "report"
 		var player_name := str(memory.get("player_name", "")).strip_edges()
 		reply = "记得。你叫%s。信号再抖我也不会把这个弄丢。" % player_name if not player_name.is_empty() else "你还没告诉我名字……信号里只有你的声音。"
-	elif _contains_any(lower, ["别怕", "坚持", "我在", "你还好吗", "还撑得住", "放心"]):
+	elif _contains_any(lower, ["骗你的", "刚才是骗你", "其实我不知道"]):
+		intent = "refuse"
+		reply = "……那我不能再照你的结论直接动。你给我能核对的读数，我用眼前的东西重新确认。"
+	elif _contains_any(lower, ["你还好吗", "还撑得住", "哪里最难受", "身体怎么样", "感觉怎么样"]):
+		intent = "report"
+		reply = _health_reply(state)
+	elif _contains_any(lower, ["别怕", "坚持", "我在", "放心", "慢一点"]):
 		intent = "reassure"
 		reply = _reassurance_reply(state)
 	elif _contains_any(lower, ["受伤了吗", "哪里受伤", "伤得", "呼吸还稳", "呼吸怎么样", "身体怎么样", "感觉怎么样", "哪里最难受"]):
@@ -73,7 +79,7 @@ func decide(context: Dictionary, player_text: String) -> Dictionary:
 		reply = _sensory_reply(room_name, observation)
 	elif _contains_any(lower, ["最后清楚记得", "最后记得", "发生了什么", "怎么被困"]):
 		intent = "report"
-		reply = "我记得压力警报先响，照明灭了一次，接着隔门落下。我撞上遥测台，醒来时线路图已经烧黑。之后的顺序我不敢保证。"
+		reply = _episodic_reply(context, "我记得压力警报先响，照明灭了一次，接着隔门落下。我撞上遥测台，醒来时线路图已经烧黑。之后的顺序我不敢保证。")
 	elif _contains_any(lower, ["只检查一件", "最想先确认", "最想确认", "最担心什么"]):
 		intent = "report"
 		reply = _concern_reply(room_name, observation, state)
@@ -267,6 +273,21 @@ func _health_reply(state: Dictionary) -> String:
 			return "左肩疼得厉害，面罩里全是雾。右手还稳……先让我喘口气。"
 		_:
 			return "左肩一动就疼，应该是刚才撞的。没流血……至少我摸到的地方没有。"
+
+
+func _episodic_reply(context: Dictionary, fallback: String) -> String:
+	var protocol: Dictionary = _dictionary(context.get("context_protocol", {}))
+	var memories: Array = _array(protocol.get("relevant_memories", []))
+	for index: int in range(memories.size() - 1, -1, -1):
+		if not memories[index] is Dictionary:
+			continue
+		var memory: Dictionary = memories[index] as Dictionary
+		if str(memory.get("tier", "")) != "episodic":
+			continue
+		var text := str(memory.get("subjective_text", "")).strip_edges()
+		if not text.is_empty():
+			return "%s……我不是想讲故事，只是不想再凭一句话赌别人受伤。" % text.left(180)
+	return fallback
 
 
 func _risk_summary(observation: Dictionary, state: Dictionary) -> String:

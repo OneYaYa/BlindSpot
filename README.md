@@ -4,14 +4,14 @@
 
 Blindspot Relay is a single-player conversation-driven puzzle game. You are a remote dispatcher with access to the K-17 facility's global telemetry; the trapped technician can only confirm what he can see in his current room. Cross-check both sides of the relay, issue one-step instructions, authorize their execution, restore the power and cooling systems, and escape.
 
-The project is deliberately scoped for solo development. It uses one transparent, chest-up pixel portrait of the male technician, while Godot draws the five room backgrounds, character animation, video-signal effects, and state feedback at runtime.
+The project is deliberately scoped for solo development. Four identity-consistent transparent pixel poses cover Lin Lan's base, hurt, listening, and relieved states, while Godot composes five room backgrounds, landmarks, signal effects, and state feedback at runtime.
 
 ## Features
 
 - One NPC, five rooms, eight action categories, and two resources: oxygen and power
 - A single carrying slot, modular power-routing puzzle, coolant-pressure puzzle, and explicit confirmation for hazardous actions
 - Three resource routes: a full repair with the phase fuse core, a costly emergency-cell bypass, or a portable oxygen reserve
-- Standard success, costly success, and failure endings with instant mission restart
+- Standard success, costly success, and failure endings with route-specific evidence, investigation, and relationship consequences
 - Complete deterministic local dialogue rules, so the game remains fully playable offline
 - Optional OpenAI-powered dialogue and action proposals
 - Puzzle clues split between dispatcher-only telemetry and the NPC's local observations
@@ -20,7 +20,8 @@ The project is deliberately scoped for solo development. It uses one transparent
 - Room-specific remote video, a pixelated transition, and a skippable four-second relay-acquisition intro
 - Visual feedback for breathing, injury, stress, low oxygen, communication, authorization, actions, and endings
 - A least-privilege NPC context compiler with source IDs, prompt traces, relationship state, and deterministic post-generation validation
-- Procedural radio ambience and event sounds
+- Room-, power-, and oxygen-aware radio layers with dedicated lock, bypass, seal, and launch cues
+- Progressive disclosure that reveals telemetry, clue tools, and authorization only when each becomes relevant
 - Font size, audio, reduced-motion, online/offline AI, quick authorization, and narrow-screen settings
 
 ## Run the Game
@@ -89,12 +90,17 @@ Key files:
 - `scripts/ui/mission_console_ui.gd`: code-driven terminal interface
 - `scripts/ui/signal_boot_overlay.gd`: relay-acquisition intro
 - `scripts/ui/npc_portrait.gd`: room renderer, transitions, and state animation
+- `assets/portraits/lin_lan_*_pixel.png`: base, hurt, listening, and relieved character poses
 - `server.py`: local OpenAI proxy that keeps credentials out of the client
 
 ## Tests
 
 ```powershell
 python -m unittest discover -s tests/python -v
+python tests/python/ai_experience_eval.py
+# Real 12-case Chinese AI experience evaluation; spends API requests
+# Set BLINDSPOT_INPUT_USD_PER_M and BLINDSPOT_OUTPUT_USD_PER_M for cost estimates
+python tests/python/ai_experience_eval.py --live
 
 $godot = "C:\path\to\Godot_v4.6.3-stable_win64_console.exe"
 & $godot --headless --path . --editor --quit
@@ -121,4 +127,4 @@ python -m pip install --user pyinstaller
 & .\packaging\build_windows_release.ps1 -EmbedApiCredential
 ```
 
-The archive is written to `build/releases/BlindspotRelay-Windows-v0.4.0.zip`. Embedded credentials are only suitable for limited private testing; public builds should use an authenticated hosted proxy with TLS, rate limits, and billing alerts. See `packaging/DISTRIBUTOR_SECURITY_NOTICE.md` and `docs/RELEASE_CHECKLIST.md`.
+The archive is written to `build/releases/BlindspotRelay-Windows-v0.5.0.zip`. Embedded credentials are only suitable for limited private testing; public builds should use an authenticated hosted proxy with TLS, rate limits, and billing alerts. See `packaging/DISTRIBUTOR_SECURITY_NOTICE.md` and `docs/RELEASE_CHECKLIST.md`.

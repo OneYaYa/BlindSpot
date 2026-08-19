@@ -102,6 +102,8 @@ func _refresh_from_core() -> void:
 
 func _apply_snapshot(snapshot: Dictionary) -> void:
 	_snapshot = snapshot.duplicate(true)
+	if is_instance_valid(_audio):
+		_audio.update_scene(_snapshot)
 	var actions := _valid_actions()
 	var view_snapshot := _snapshot.duplicate(true)
 	view_snapshot["available_actions"] = actions
@@ -238,7 +240,18 @@ func _on_mission_event(event: Dictionary) -> void:
 	# character line is appended here so a single action never appears twice.
 	var npc_line := str(event.get("npc_line", "")).strip_edges()
 	var event_type := str(event.get("type", "message"))
-	_audio.play_cue("hazard" if event_type == "hazard" else "success" if event_type in ["puzzle_solved", "ending"] else event_type)
+	var cue_name := event_type
+	if event_type == "hazard":
+		cue_name = "hazard"
+	elif event_type == "ending":
+		cue_name = "launch" if str(event.get("outcome", "")) != "failure" else "failure"
+	elif str(event.get("route", "")) == "emergency_bypass":
+		cue_name = "bypass_burn"
+	elif event_type == "puzzle_solved" and str(event.get("puzzle", "")) == "power":
+		cue_name = "power_lock"
+	elif event_type == "puzzle_solved" and str(event.get("puzzle", "")) == "coolant":
+		cue_name = "seal_release"
+	_audio.play_cue(cue_name)
 	if not npc_line.is_empty():
 		var npc: Dictionary = _dictionary(_snapshot.get("npc", {}))
 		ui.append_dialogue(str(npc.get("name", "林岚")), npc_line, "npc")
@@ -251,7 +264,8 @@ func _on_confirmation_required(proposal: Dictionary) -> void:
 
 
 func _on_mission_ended(outcome: String, snapshot: Dictionary) -> void:
-	_audio.play_cue("failure" if outcome == "failure" else "success")
+	if outcome == "failure":
+		_audio.play_cue("failure")
 	_apply_snapshot(snapshot)
 	ui.show_outcome(outcome, snapshot)
 

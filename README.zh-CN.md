@@ -4,16 +4,16 @@
 
  Blindspot是一个单人对话解密游戏。玩家是远程调度员，掌握 K-17 设施的全局遥测；受困技术员只知道当前房间里能亲眼确认的事。玩家需要通过文字中继交叉核对两边的信息，向他下达单步指令并授权执行，最终恢复电网与冷却回路并撤离。
 
-这个版本专门按独立开发范围收敛：仅使用一张男性肩部以上的透明像素角色底图；五个房间背景、角色动画、视频信号效果和状态反馈都由 Godot 绘制代码实时生成，因此增加房间或状态时不需要重画完整动画帧。
+这个版本专门按独立开发范围收敛：使用同一角色身份的基础、受伤、专注监听和获救释然四张透明像素姿态；五个房间背景、地标、视频信号效果和状态反馈均由 Godot 实时组合。
 
 ## 已实现
 
 - 1 名 NPC、5 个房间、8 类动作、氧气与电力两项资源
 - 单格携带槽、模块化电网匹配与冷却压力谜题、危险操作单次明确确认
 - 相位保险芯完整修复、应急电芯代价旁路、便携氧气罐三种资源路线选择
-- 正常成功、代价成功、失败三类结局和一键重开
+- 正常成功、代价成功、失败三类结局和一键重开；不同路线会改变事故证据、责任调查与关系收束
 - 完整本地规则回复；不启动网络服务也能通关
-- 可选 OpenAI `gpt-5.6-luna` 对话与候选动作
+- 可选 OpenAI 对话与候选动作（模型由 `.env` 配置）
 - 谜题线索拆分为调度员独占遥测与 NPC 当前房间的局部观察
 - 不显示完整动作清单；明确自然语言指令只生成一个待授权候选
 - 左侧 `NEXT` 按权威任务状态给出当前目标和输入示例，跳过关键步骤或抵达中央舱时会提供纠偏与双路线说明
@@ -30,13 +30,13 @@
 - 亲眼事实、调度员说法和主观记忆均带稳定来源 ID；模型返回实际引用 ID，服务端生成可回放 Prompt hash
 - 世界状态始终由 Godot 本地核心验证和修改
 - 玩家自述的时间跳跃不会被当成世界事实；本地与在线 NPC 都会拒绝“过了一年”等无依据叙述并保持当前位置
-- 最近 10 条玩家/NPC 对话、本地姓名/承诺记忆、信任、恐惧与信念状态
+- 最近 10 条玩家/NPC 对话、最多 14 条单局事件记忆、姓名/承诺、五段个人经历、信任、恐惧与信念状态
 - 信任与恐惧会影响危险操作意愿；安抚可准备聚焦细扫，连续纯对话会推进通讯耗氧周期
 - 可点击的远端/现场双轨线索工作台，帮助玩家自己拼合证据而不自动给出答案
 - 否定、条件、疑问和含糊指令不会生成可执行候选
-- 程序化无线电环境音、移动/检查/危险/成功事件音效
+- 按房间、电力与氧气动态分层的无线电环境音，以及电网闭锁、旁路烧毁、密封释放和发射专属音效
 - 字号、音量、静音、减少动态、在线/本地模式、安全动作 Enter 快速授权设置与窄屏布局
-- 房间前景遮挡、现场特写框、信任/恐惧姿态和压力调节视觉反馈
+- 三阶段渐进式界面、房间独立视觉地标、四套角色姿态、现场特写框和压力调节视觉反馈
 - 在线失败两次后自动熔断 30 秒；等待期间可以取消
 - 本地代理限制浏览器 Origin、按来源限流并通过 `/health` 提供无敏感信息的运行指标
 
@@ -59,7 +59,7 @@
 - `Ctrl+R`：确认后重新开始任务
 - 右上角 `SETTINGS`：调整字号、音频、动态效果和在线 AI 模式
 
-## 启用 gpt-5.6-luna
+## 启用在线 AI
 
 API Key 只保存在本机 Python 进程中，不会进入 Godot 客户端或提交到版本库。
 
@@ -84,7 +84,7 @@ reply / intent / action / target / mood / referenced_ids
 ## 架构
 
 ```text
-玩家文本 ──> gpt-5.6-luna / 本地回复规则
+玩家文本 ──> 配置的 OpenAI 模型 / 本地回复规则
                  │
                  └──> 角色回复 + 最多一个白名单候选
                                       │
@@ -116,13 +116,17 @@ reply / intent / action / target / mood / referenced_ids
 - `scripts/ui/mission_console_ui.gd`：纯代码终端界面
 - `scripts/ui/signal_boot_overlay.gd`：全屏中继抢接、信号闪断与震动开场
 - `scripts/ui/npc_portrait.gd`：五个像素房间、转场和状态动画渲染器
-- `assets/portraits/lin_lan_male_pixel.png`：林岚的男性肩部以上透明像素角色底图
+- `assets/portraits/lin_lan_*_pixel.png`：林岚的基础、受伤、监听与释然透明像素姿态
 - `server.py`：不向客户端暴露密钥的本地 OpenAI 代理
 
 ## 测试
 
 ```powershell
 python -m unittest discover -s tests/python -v
+python tests/python/ai_experience_eval.py
+# 使用真实模型跑 12 条中文体验评测（会产生 API 费用）
+# 如需估算成本，先设置 BLINDSPOT_INPUT_USD_PER_M 与 BLINDSPOT_OUTPUT_USD_PER_M
+python tests/python/ai_experience_eval.py --live
 
 $godot = "C:\path\to\Godot_v4.6.3-stable_win64_console.exe"
 & $godot --headless --path . --editor --quit
@@ -141,7 +145,7 @@ $godot = "C:\path\to\Godot_v4.6.3-stable_win64_console.exe"
 & $godot --headless --path . res://tests/godot/online_service_test.tscn
 ```
 
-当前验证基线：Python 22 项测试通过；Godot 核心 206 项检查通过；Godot 主流程集成 83 项检查通过；当前配置下的 `gpt-5.6-luna` 在线冒烟会返回真实 NPC 回复，姓名记忆通道也已验证。重新部署或更换模型后仍应再运行一次在线测试。
+当前验证基线：Python 27 项测试通过；Godot 核心 250 项检查通过；Godot 主流程集成 100 项检查通过。2026-08-19 使用配置的 `gpt-5.6-terra` 完成 12 条中文在线评测：人格一致率与事实引用正确率 100%，谜题泄漏、动作误提议、复读、术语泄漏、在线失败和本地回退均为 0；P50 2.45 秒，P95 2.91 秒。小样本结果只作为当前版本基线，重新部署或更换模型后应复测。
 
 ## 通关方法（答案每局变化）
 
@@ -158,7 +162,7 @@ python -m pip install --user pyinstaller
 & .\packaging\build_windows_release.ps1 -EmbedApiCredential
 ```
 
-产物写入 `build/releases/BlindspotRelay-Windows-v0.4.0.zip`。加入
+产物写入 `build/releases/BlindspotRelay-Windows-v0.5.0.zip`。加入
 `-EmbedApiCredential` 会把当前 `.env` 配置打进本地代理，满足小范围测试玩家
 解压即用在线 AI；桌面程序中的密钥仍可能被提取，因此公开发行不得使用个人或
 高额度 Key，应改用带鉴权、TLS、限流和账单告警的托管代理。详见
@@ -167,7 +171,7 @@ python -m pip install --user pyinstaller
 对最终 ZIP 执行隔离解压、文件哈希、真实在线对话、入口启动和进程清理测试：
 
 ```powershell
-python .\packaging\smoke_test_release.py .\build\releases\BlindspotRelay-Windows-v0.4.0.zip
+python .\packaging\smoke_test_release.py .\build\releases\BlindspotRelay-Windows-v0.5.0.zip
 ```
 
 不加 `-EmbedApiCredential` 时不会内置 `.env`，全部玩法仍可使用本地 NPC 完整

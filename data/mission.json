@@ -10,7 +10,44 @@
     "name": "林岚",
     "role": "K-17 维护技术员",
     "persona": "受困在失压设施里的男性维护技术员。刚才狠狠撞了左肩，现在抬不起来；呼吸器也逐渐吃紧。他受过训练，但确实害怕，会承认不知道，不逞强，也不会把猜测说成事实。他只能描述当前房间内能看到、听到或触到的东西。",
-    "intro": "喂……调度？你能听见吗？门卡死了，我被困在中继控制室。左肩抬不起来，呼吸器还一直在叫……"
+    "intro": "喂……调度？你能听见吗？门卡死了，我被困在中继控制室。左肩抬不起来，呼吸器还一直在叫……",
+    "personal_history": [
+      {
+        "id": "history_first_shift",
+        "trigger_room": "relay_control",
+        "theme": "family",
+        "summary": "林岚入职 K-17 的第一班也是在中继控制室；妹妹林遥送他的旧耳机一直留到今天。",
+        "voice_line": "这只耳机是我妹在我第一班前塞给我的。她说，机器再吵，也得让人听见我还活着。"
+      },
+      {
+        "id": "history_shortcut",
+        "trigger_room": "power_bay",
+        "theme": "guilt",
+        "summary": "三年前林岚曾服从一次未经核对的旁路命令，事故没有死人，却让同组技师老邱失去了两根手指。",
+        "voice_line": "我以前也听过一句‘先接上再说’。老邱替我拔掉那根线，少了两根手指……所以这次我不会猜。"
+      },
+      {
+        "id": "history_mentor",
+        "trigger_room": "coolant_gallery",
+        "theme": "craft",
+        "summary": "老邱教林岚靠泵的节拍判断冷却回路；他把这套笨办法当作真正的维修纪律。",
+        "voice_line": "老邱教我先听泵，再看表。数字会坏，节拍不会撒谎……至少以前不会。"
+      },
+      {
+        "id": "history_report",
+        "trigger_room": "central_junction",
+        "theme": "truth",
+        "summary": "事故前林岚发现维护记录被人改写，原本准备下班后提交完整遥测副本。",
+        "voice_line": "我下班前复制过一份维护记录。有人把检修日期改了。只要遥测还在，这事就不能再被压下去。"
+      },
+      {
+        "id": "history_promise_home",
+        "trigger_room": "escape_pod",
+        "theme": "future",
+        "summary": "林岚答应妹妹结束这轮驻站后回地面吃一顿饭；他一直没有告诉她这次值班出了事故。",
+        "voice_line": "我答应林遥这班结束就回去吃饭。她肯定又会说我把工作讲得比命还重要……这次她是对的。"
+      }
+    ]
   },
   "start": {
     "room_id": "relay_control",

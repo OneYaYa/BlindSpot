@@ -14,6 +14,7 @@ func _ready() -> void:
 	_test_split_clues_and_local_boundary()
 	_test_local_language_and_ambiguity()
 	_test_randomized_evidence_and_social_memory()
+	_test_character_arc_and_episodic_ending()
 	_test_relationship_and_communication_pressure()
 	_test_clean_completion()
 	_test_emergency_route_and_oxygen_branch()
@@ -215,6 +216,74 @@ func _test_randomized_evidence_and_social_memory() -> void:
 	var beliefs := after_social.get("npc_beliefs", {}) as Dictionary
 	_expect(not (beliefs.get("operator_claims", []) as Array).is_empty(), "operator clue becomes an NPC belief rather than world truth")
 	_expect(bool((after_social.get("flags", {}) as Dictionary).get("focused_scan_ready", false)), "reassurance prepares a focused field scan")
+
+
+func _test_character_arc_and_episodic_ending() -> void:
+	var simulation: MissionSimulation = _new_simulation()
+	var after_scan := _execute(simulation, "inspect", "telemetry_console")
+	var scan_event := after_scan.get("event", {}) as Dictionary
+	_expect(not str(scan_event.get("npc_line", "")).is_empty(), "first telemetry scan reveals a personal-history voice line")
+	var history_after_scan := simulation.snapshot().get("event_memory", []) as Array
+	_expect(history_after_scan.any(func(item: Variant) -> bool:
+		return item is Dictionary and str((item as Dictionary).get("kind", "")) == "personal_history"
+	), "personal history is stored as structured episodic memory")
+
+	var social_before := simulation.snapshot().get("npc_social", {}) as Dictionary
+	simulation.record_conversation("我会一直在线，也一定带你出去。", {"intent": "reassure", "mood": "focused"})
+	var reassured := simulation.snapshot()
+	_expect(int((reassured.get("npc_social", {}) as Dictionary).get("trust", 0)) > int(social_before.get("trust", 0)), "reassurance produces a distinct trust response")
+	var memories := reassured.get("event_memory", []) as Array
+	_expect(memories.any(func(item: Variant) -> bool:
+		return item is Dictionary and str((item as Dictionary).get("kind", "")) == "reassurance"
+	), "reassurance is recorded as an episodic event")
+	_expect(memories.any(func(item: Variant) -> bool:
+		return item is Dictionary and str((item as Dictionary).get("kind", "")) == "promise"
+	), "explicit player promises are retained separately")
+
+	var trust_before_deception := int((reassured.get("npc_social", {}) as Dictionary).get("trust", 0))
+	simulation.record_conversation("其实我不知道，刚才是骗你的。", {"intent": "conversation", "mood": "nervous"})
+	var deceived := simulation.snapshot()
+	_expect(int((deceived.get("npc_social", {}) as Dictionary).get("trust", 0)) < trust_before_deception, "admitted deception causes a distinct trust penalty")
+	_expect((deceived.get("event_memory", []) as Array).any(func(item: Variant) -> bool:
+		return item is Dictionary and str((item as Dictionary).get("kind", "")) == "deception"
+	), "deception remains available to later dialogue and the ending")
+
+	var compiler: NpcContextCompiler = ContextCompilerScript.new() as NpcContextCompiler
+	var compiled := compiler.compile(
+		simulation.build_npc_context(),
+		deceived,
+		simulation.valid_actions(),
+		[],
+		{},
+		"你还记得我刚才说过什么吗？"
+	)
+	var protocol := compiled.get("context_protocol", {}) as Dictionary
+	_expect((protocol.get("relevant_memories", []) as Array).any(func(item: Variant) -> bool:
+		return item is Dictionary and str((item as Dictionary).get("memory_id", "")).begins_with("event:")
+	), "context compiler forwards structured episodic memories to the NPC")
+
+	# Complete the clean route and assert that the ending pays off the run's words and choices.
+	_execute(simulation, "take", "phase_fuse")
+	_execute(simulation, "move", "central_junction")
+	_execute(simulation, "move", "power_bay")
+	_execute(simulation, "inspect", "cable_panel")
+	_confirm_action(simulation, "connect", _correct_cable(simulation))
+	_execute(simulation, "use", "phase_fuse")
+	_execute(simulation, "take", "sealant_kit")
+	_execute(simulation, "move", "central_junction")
+	_execute(simulation, "move", "coolant_gallery")
+	_execute(simulation, "inspect", "valve_manifold")
+	_perform_coolant_solution(simulation)
+	_execute(simulation, "use", "sealant_kit")
+	_execute(simulation, "move", "central_junction")
+	_execute(simulation, "move", "escape_pod")
+	_execute(simulation, "use", "launch_console")
+	var ending := simulation.snapshot().get("debrief", {}) as Dictionary
+	_expect(not str(ending.get("consequence", "")).is_empty(), "ending contains a concrete post-escape consequence")
+	_expect(not str(ending.get("recalled_quote", "")).is_empty(), "ending recalls a player-authored line")
+	_expect(not str(ending.get("key_moment", "")).is_empty(), "ending calls back a key run event")
+	_expect(not str(ending.get("closing_line", "")).is_empty(), "ending resolves the relationship with a character-specific closing line")
+	_expect((simulation.snapshot().get("arc_progress", []) as Array).size() >= 4, "clean route reveals at least four personal-history beats")
 
 
 func _test_relationship_and_communication_pressure() -> void:

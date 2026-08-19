@@ -10,6 +10,9 @@ extends Control
 ## pending action and ending state all affect the scene.
 
 const MALE_PIXEL_PORTRAIT_PATH := "res://assets/portraits/lin_lan_male_pixel.png"
+const HURT_PIXEL_PORTRAIT_PATH := "res://assets/portraits/lin_lan_hurt_pixel.png"
+const LISTENING_PIXEL_PORTRAIT_PATH := "res://assets/portraits/lin_lan_listening_pixel.png"
+const RELIEVED_PIXEL_PORTRAIT_PATH := "res://assets/portraits/lin_lan_relieved_pixel.png"
 const FALLBACK_PORTRAIT: Texture2D = preload("res://assets/portraits/lin_lan_male_pixel.png")
 
 const BG := Color("03080c")
@@ -42,6 +45,7 @@ var _action_success := true
 var _terminal := false
 var _outcome := "ongoing"
 var _portrait: Texture2D = FALLBACK_PORTRAIT
+var _portrait_variants: Dictionary = {}
 var _character_asset := MALE_PIXEL_PORTRAIT_PATH
 var _using_male_portrait := true
 var _character_visual_rect := Rect2()
@@ -66,6 +70,7 @@ func _process(delta: float) -> void:
 	_transition = minf(1.0, _transition + delta * 2.8)
 	_action_flash = maxf(0.0, _action_flash - delta)
 	_focus_flash = maxf(0.0, _focus_flash - delta)
+	_select_portrait_for_state()
 	queue_redraw()
 
 
@@ -125,6 +130,7 @@ func set_npc_state(state: Dictionary, connection: String = "local") -> void:
 				_focus_flash = 1.35
 				_focus_kind = str(last_event.get("type", event_action))
 
+	_select_portrait_for_state()
 	queue_redraw()
 
 
@@ -163,6 +169,7 @@ func trigger_action(action_id: String, success: bool = true) -> void:
 	if action_id in ["inspect", "connect", "toggle", "use"]:
 		_focus_flash = 1.35
 		_focus_kind = "hazard" if not success else action_id
+	_select_portrait_for_state()
 	queue_redraw()
 
 
@@ -212,11 +219,42 @@ func _load_pixel_portrait() -> void:
 	# The trapped technician is consistently male in both the authored asset and
 	# the fallback; a failed runtime load must never reveal the retired portrait.
 	if _try_load_portrait(MALE_PIXEL_PORTRAIT_PATH):
+		_portrait_variants["base"] = _portrait
+		_load_portrait_variant("hurt", HURT_PIXEL_PORTRAIT_PATH)
+		_load_portrait_variant("listening", LISTENING_PIXEL_PORTRAIT_PATH)
+		_load_portrait_variant("relieved", RELIEVED_PIXEL_PORTRAIT_PATH)
 		_using_male_portrait = true
 		return
 	_portrait = FALLBACK_PORTRAIT
 	_character_asset = MALE_PIXEL_PORTRAIT_PATH
 	_using_male_portrait = true
+
+
+func _load_portrait_variant(key: String, path: String) -> void:
+	if not ResourceLoader.exists(path):
+		return
+	var resource := load(path)
+	if resource is Texture2D:
+		_portrait_variants[key] = resource as Texture2D
+
+
+func _select_portrait_for_state() -> void:
+	var key := "base"
+	var mood := str(_state.get("mood", "focused")).to_lower()
+	if _terminal and _outcome != "failure":
+		key = "relieved"
+	elif _oxygen <= 25.0 or _mistakes > 0 or _fear >= 70 or mood in ["hurt", "injured", "afraid", "panic"]:
+		key = "hurt"
+	elif _thinking or _candidate_pending or _action_active or _action_flash > 0.0 or _focus_flash > 0.0:
+		key = "listening"
+	var selected: Variant = _portrait_variants.get(key, _portrait_variants.get("base", FALLBACK_PORTRAIT))
+	if selected is Texture2D:
+		_portrait = selected as Texture2D
+	match key:
+		"hurt": _character_asset = HURT_PIXEL_PORTRAIT_PATH
+		"listening": _character_asset = LISTENING_PIXEL_PORTRAIT_PATH
+		"relieved": _character_asset = RELIEVED_PIXEL_PORTRAIT_PATH
+		_: _character_asset = MALE_PIXEL_PORTRAIT_PATH
 
 
 func _try_load_portrait(path: String) -> bool:
@@ -245,6 +283,7 @@ func _draw() -> void:
 	else:
 		_draw_room_scene(_room_id, world_rect, 1.0)
 
+	_draw_room_landmark(_room_id, world_rect)
 	_draw_character(world_rect)
 	_draw_room_foreground(_room_id, world_rect)
 	_draw_state_effects(world_rect)
@@ -267,6 +306,34 @@ func _draw_room_scene(room_id: String, rect: Rect2, alpha: float) -> void:
 			_draw_escape_pod(rect, alpha)
 		_:
 			_draw_relay_control(rect, alpha)
+
+
+func _draw_room_landmark(room_id: String, rect: Rect2) -> void:
+	var anchor := rect.position + Vector2(rect.size.x - 38.0, 36.0)
+	match room_id:
+		"relay_control":
+			draw_arc(anchor, 19.0, -2.5, 0.35, 20, Color(CYAN, 0.68), 2.0)
+			draw_arc(anchor, 11.0, -2.5, 0.35, 16, Color(CYAN, 0.82), 2.0)
+			draw_circle(anchor + Vector2(-7, 7), 3.0, Color(AMBER, 0.85))
+		"central_junction":
+			var points := PackedVector2Array([anchor + Vector2(0, -20), anchor + Vector2(20, 0), anchor + Vector2(0, 20), anchor + Vector2(-20, 0), anchor + Vector2(0, -20)])
+			draw_polyline(points, Color(AMBER, 0.78), 3.0)
+			draw_line(anchor - Vector2(14, 0), anchor + Vector2(14, 0), Color(CYAN, 0.66), 2.0)
+			draw_line(anchor - Vector2(0, 14), anchor + Vector2(0, 14), Color(CYAN, 0.66), 2.0)
+		"power_bay":
+			var triangle := PackedVector2Array([anchor + Vector2(0, -22), anchor + Vector2(22, 18), anchor + Vector2(-22, 18), anchor + Vector2(0, -22)])
+			draw_polyline(triangle, Color(AMBER, 0.88), 3.0)
+			_draw_arc_flash(anchor + Vector2(3, -12), 0.95)
+		"coolant_gallery":
+			draw_circle(anchor, 22.0, Color("12252b"))
+			draw_arc(anchor, 20.0, PI, TAU, 20, Color(CYAN, 0.82), 3.0)
+			var needle_angle := lerpf(PI + 0.25, TAU - 0.25, clampf(float(_flags.get("coolant_pressure", 40)) / 80.0, 0.0, 1.0))
+			draw_line(anchor, anchor + Vector2(cos(needle_angle), sin(needle_angle)) * 15.0, Color(AMBER, 0.92), 2.0)
+		"escape_pod":
+			var ring_color := CYAN if bool(_flags.get("escape_unlocked", false)) else RED
+			draw_arc(anchor, 22.0, 0.0, TAU, 24, Color(ring_color, 0.82), 3.0)
+			draw_arc(anchor, 13.0, 0.0, TAU, 20, Color(ring_color, 0.52), 2.0)
+			draw_line(anchor + Vector2(0, -13), anchor + Vector2(0, 13), Color(ring_color, 0.72), 2.0)
 
 
 func _draw_room_foreground(room_id: String, rect: Rect2) -> void:

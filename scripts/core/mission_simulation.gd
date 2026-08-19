@@ -109,6 +109,8 @@ func snapshot() -> Dictionary:
 		"evidence": _evidence_view(flags),
 		"npc_social": (_state.get("npc_social", {}) as Dictionary).duplicate(true),
 		"npc_beliefs": (_state.get("npc_beliefs", {}) as Dictionary).duplicate(true),
+		"event_memory": (_state.get("event_memory", []) as Array).duplicate(true),
+		"arc_progress": (_state.get("arc_progress", []) as Array).duplicate(true),
 		"mistakes": int(_state.get("mistakes", 0)),
 		"pending_confirmation": pending_view,
 		"outcome": str(_state.get("outcome", "ongoing")),
@@ -293,6 +295,8 @@ func restart() -> Dictionary:
 			"operator_claims": [],
 			"confidence": 0,
 		},
+		"event_memory": [],
+		"arc_progress": [],
 		"mistakes": 0,
 		"outcome": "ongoing",
 		"ending_reason": "",
@@ -377,6 +381,7 @@ func build_npc_context() -> Dictionary:
 		"visible_observations": visible,
 		"allowed_actions": valid_actions(),
 		"recent_events": log.slice(maxi(0, log.size() - 6)),
+		"event_memory": (_state.get("event_memory", []) as Array).duplicate(true),
 		"contract": "只可从 allowed_actions 选择候选动作；不得发明物品、房间、资源或直接修改状态。",
 	}
 
@@ -409,9 +414,19 @@ func record_conversation(player_text: String, decision: Dictionary) -> Dictionar
 	if mood in ["afraid", "hurt"]:
 		fear += 1
 	var compact := player_text.replace(" ", "")
+	var player_quote := player_text.strip_edges().left(120)
 	if compact.contains("闭嘴") or compact.contains("废物") or compact.contains("快点照做"):
 		trust -= 8
 		fear += 6
+		_remember_event("hostility", "调度员在高压时用命令和侮辱逼迫林岚。", player_quote, 0.86, "conversation:hostility")
+	if compact.contains("骗你的") or compact.contains("刚才是骗你") or compact.contains("其实我不知道"):
+		trust -= 10
+		fear += 4
+		_remember_event("deception", "调度员承认此前的信息并不可靠。", player_quote, 0.92, "conversation:deception")
+	if intent == "reassure":
+		_remember_event("reassurance", "调度员在危险中要求林岚慢下来，并承诺保持联络。", player_quote, 0.78, "conversation:reassurance")
+	if compact.contains("我会") or compact.contains("答应你") or compact.contains("不会丢下") or compact.contains("带你出去"):
+		_remember_event("promise", "调度员向林岚作出了一项明确承诺。", player_quote, 0.90, "conversation:promise")
 	if advances_cycle:
 		social["conversation_since_cycle"] = int(social.get("conversation_since_cycle", 0)) + 1
 		if int(social.get("conversation_since_cycle", 0)) >= 3:
@@ -618,11 +633,30 @@ func _apply_social_consequence(event: Dictionary) -> void:
 	if bool(event.get("mistake", false)):
 		trust -= 6
 		fear += 12
+		_remember_event(
+			"mistake",
+			str(event.get("text", "一次错误操作让设施和林岚付出了代价。")),
+			str(social.get("last_player_line", "")).left(120),
+			0.96,
+			"action:mistake:%d" % int(_state.get("turn", 0))
+		)
 	elif str(event.get("type", "")) == "puzzle_solved":
 		trust += 2
 		fear -= 6
+		var puzzle_name := str(event.get("puzzle", "system"))
+		var memory_kind := "risky_choice" if str(event.get("route", "")) == "emergency_bypass" else "repair_success"
+		_remember_event(
+			memory_kind,
+			str(event.get("text", "维修步骤完成。")),
+			str(social.get("last_player_line", "")).left(120),
+			0.88,
+			"repair:%s" % puzzle_name
+		)
 	elif str(event.get("type", "")) == "resource":
 		fear -= 5
+		_remember_event("care", str(event.get("text", "调度员为林岚保留了补给。")), str(social.get("last_player_line", "")).left(120), 0.72, "resource:care")
+	elif str(event.get("type", "")) == "ending":
+		_remember_event("escape", str(event.get("text", "林岚离开了 K-17。")), str(social.get("last_player_line", "")).left(120), 1.0, "ending:escape")
 	social["trust"] = clampi(trust, 0, 100)
 	social["fear"] = clampi(fear, 0, 100)
 	_state["npc_social"] = social
@@ -641,6 +675,11 @@ func _apply_move(target: String) -> Dictionary:
 			event["npc_line"] = "冷雾到膝盖了，面罩边上全是霜……我只能看清一小块。你问哪儿，我就凑近看。"
 		"central_junction":
 			event["npc_line"] = "我到交汇舱了。逃生门就在前面，但两盏锁灯还是红的。"
+		"escape_pod":
+			event["npc_line"] = "我到逃生舱门口了。发射灯在等最后确认……调度，别现在断线。"
+	var history_line := _reveal_personal_history(target)
+	if not history_line.is_empty():
+		event["npc_line"] = "%s\n%s" % [str(event.get("npc_line", "")), history_line] if not str(event.get("npc_line", "")).is_empty() else history_line
 	return event
 
 
@@ -653,6 +692,9 @@ func _apply_inspect(target: String) -> Dictionary:
 			flags["telemetry_inspected"] = true
 			text = "遥测深扫完成：两段损坏前的诊断记录已同步到远程操作端。"
 			npc_line = "屏幕烧成一片雪花了。你那边还能收到东西吗？我这儿什么都读不出来。"
+			var relay_history := _reveal_personal_history("relay_control")
+			if not relay_history.is_empty():
+				npc_line += "\n" + relay_history
 		"escape_bulkhead":
 			text = "隔门联锁状态：电网%s，冷却%s。" % [
 				"正常" if bool(flags.get("grid_online", false)) else "离线",
@@ -1217,6 +1259,91 @@ func _remember_confirmed_local(fact: String) -> void:
 	_state["npc_beliefs"] = beliefs
 
 
+func _remember_event(kind: String, summary: String, player_quote: String, importance: float, source_id: String) -> void:
+	var clean_summary := summary.strip_edges().left(240)
+	if clean_summary.is_empty():
+		return
+	var memories: Array = (_state.get("event_memory", []) as Array).duplicate(true)
+	var clean_source := source_id.strip_edges().left(80)
+	for index: int in range(memories.size()):
+		var existing: Dictionary = memories[index] as Dictionary
+		if not clean_source.is_empty() and str(existing.get("source_id", "")) == clean_source:
+			existing["summary"] = clean_summary
+			existing["player_quote"] = player_quote.strip_edges().left(120)
+			existing["turn"] = int(_state.get("turn", 0))
+			existing["importance"] = clampf(importance, 0.0, 1.0)
+			memories[index] = existing
+			_state["event_memory"] = memories
+			return
+	memories.append({
+		"memory_id": "event:%s:%d" % [kind, int(_state.get("turn", 0))],
+		"kind": kind,
+		"summary": clean_summary,
+		"player_quote": player_quote.strip_edges().left(120),
+		"room_id": str(_state.get("room_id", "")),
+		"turn": int(_state.get("turn", 0)),
+		"importance": clampf(importance, 0.0, 1.0),
+		"source_id": clean_source,
+	})
+	if memories.size() > 14:
+		memories = memories.slice(memories.size() - 14)
+	_state["event_memory"] = memories
+
+
+func _reveal_personal_history(room_id: String) -> String:
+	var npc_config: Dictionary = _mission_data.get("npc", {}) as Dictionary
+	var progress: Array = (_state.get("arc_progress", []) as Array).duplicate()
+	for value: Variant in npc_config.get("personal_history", []) as Array:
+		if not value is Dictionary:
+			continue
+		var history: Dictionary = value as Dictionary
+		var history_id := str(history.get("id", ""))
+		if history_id.is_empty() or history_id in progress or str(history.get("trigger_room", "")) != room_id:
+			continue
+		progress.append(history_id)
+		_state["arc_progress"] = progress
+		_remember_event(
+			"personal_history",
+			str(history.get("summary", "")),
+			"",
+			0.82,
+			"history:%s" % history_id
+		)
+		return str(history.get("voice_line", "")).strip_edges()
+	return ""
+
+
+func _ending_recalled_quote() -> String:
+	var memories: Array = _state.get("event_memory", []) as Array
+	for index: int in range(memories.size() - 1, -1, -1):
+		var memory: Dictionary = memories[index] as Dictionary
+		if str(memory.get("kind", "")) in ["promise", "reassurance", "hostility", "deception"]:
+			var quote := str(memory.get("player_quote", "")).strip_edges()
+			if not quote.is_empty():
+				return quote.left(100)
+	return ""
+
+
+func _ending_key_moment() -> String:
+	var memories: Array = _state.get("event_memory", []) as Array
+	for index: int in range(memories.size() - 1, -1, -1):
+		var memory: Dictionary = memories[index] as Dictionary
+		if str(memory.get("kind", "")) in ["mistake", "risky_choice", "repair_success", "care"]:
+			return str(memory.get("summary", "")).left(160)
+	return "你们在盲区两端完成了最后一次核对。"
+
+
+func _ending_closing_line(outcome: String, trust: int, recalled_quote: String) -> String:
+	if outcome == "failure":
+		return "记录末尾只剩未完成的呼叫与持续的载波噪声。"
+	if not recalled_quote.is_empty():
+		if trust >= 60:
+			return "林岚在救援频道重新接通后说：‘你说过“%s”。我记得。’" % recalled_quote
+		if trust < 35:
+			return "林岚没有回应那句‘%s’，只向救援队确认了自己的坐标。" % recalled_quote
+	return "林岚在地面频道停了两秒，说他会记住那个一直留在线上的声音。" if trust >= 60 else "林岚确认安全后关闭中继，你们的关系停在一次专业协作上。"
+
+
 func _npc_mood() -> String:
 	var social: Dictionary = _state.get("npc_social", {}) as Dictionary
 	var fear := int(social.get("fear", 35))
@@ -1254,11 +1381,30 @@ func _ending_debrief() -> Dictionary:
 	var title := "完整撤离" if outcome == "success" else "代价撤离" if outcome == "costly_success" else "通讯终止"
 	var flags: Dictionary = _state.get("flags", {}) as Dictionary
 	var route := str(flags.get("power_route", "uncommitted"))
-	var body := "林岚与事故遥测完整获救。" if outcome == "success" else "林岚获救，但设施损失被记录在案。" if outcome == "costly_success" else str(_state.get("ending_reason", "任务失败"))
+	var telemetry_preserved := outcome == "success" and route == "phase_fuse"
+	var consequence := (
+		"事故遥测与被改写的检修记录都被带回地面，K-17 的责任调查将重新启动。"
+		if telemetry_preserved
+		else "林岚活了下来，但旁路烧毁了关键遥测；被改写的检修记录暂时无法成为完整证据。"
+		if outcome == "costly_success"
+		else "中继在最后一次呼叫后归于静默，事故调查只剩不完整的远端记录。"
+	)
+	var recalled_quote := _ending_recalled_quote()
+	var key_moment := _ending_key_moment()
+	var closing_line := _ending_closing_line(outcome, trust, recalled_quote)
+	var body := (
+		"林岚与事故遥测完整获救。" if outcome == "success"
+		else "林岚获救，但设施损失与证据缺口已经无法撤回。" if outcome == "costly_success"
+		else str(_state.get("ending_reason", "任务失败"))
+	)
 	return {
 		"title": title,
 		"body": body,
 		"relationship": relationship,
+		"consequence": consequence,
+		"recalled_quote": recalled_quote,
+		"key_moment": key_moment,
+		"closing_line": closing_line,
 		"trust": trust,
 		"checkins": int(social.get("checkins", 0)),
 		"mistakes": int(_state.get("mistakes", 0)),
