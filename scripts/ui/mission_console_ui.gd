@@ -1021,7 +1021,8 @@ func _objective_body(snapshot: Dictionary) -> String:
 		var example := str(guidance.get("example_command", "")).strip_edges()
 		result = "[color=#d3a354][b]NEXT / 现在做什么[/b][/color]\n%s" % _escape_bbcode(instruction)
 		if not example.is_empty():
-			result += "\n[color=#62b9b3]输入示例[/color]  “%s”" % _escape_bbcode(example)
+			var example_label := "命令格式" if example.contains("<") and example.contains(">") else "输入示例"
+			result += "\n[color=#62b9b3]%s[/color]  “%s”" % [example_label, _escape_bbcode(example)]
 		result += "\n[color=#789398]操作方式[/color]  输入指令 → AI 提出动作 → 右侧授权执行"
 		result += "\n\n[color=#789398]OBJECTIVE / 总目标[/color]\n%s" % _escape_bbcode(objective)
 	else:

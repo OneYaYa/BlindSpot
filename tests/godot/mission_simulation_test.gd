@@ -14,6 +14,7 @@ func _ready() -> void:
 	_test_split_clues_and_local_boundary()
 	_test_local_language_and_ambiguity()
 	_test_randomized_evidence_and_social_memory()
+	_test_randomized_guidance_never_suggests_answer()
 	_test_character_arc_and_episodic_ending()
 	_test_relationship_and_communication_pressure()
 	_test_clean_completion()
@@ -216,6 +217,51 @@ func _test_randomized_evidence_and_social_memory() -> void:
 	var beliefs := after_social.get("npc_beliefs", {}) as Dictionary
 	_expect(not (beliefs.get("operator_claims", []) as Array).is_empty(), "operator clue becomes an NPC belief rather than world truth")
 	_expect(bool((after_social.get("flags", {}) as Dictionary).get("focused_scan_ready", false)), "reassurance prepares a focused field scan")
+
+
+func _test_randomized_guidance_never_suggests_answer() -> void:
+	var unsafe_power_seeds: Array[int] = []
+	var unsafe_coolant_seeds: Array[int] = []
+	var saw_non_blue_power_answer := false
+	var saw_coolant_answer_without_i := false
+	for seed: int in range(1, 121):
+		var simulation := SimulationScript.new("res://data/mission.json", seed) as MissionSimulation
+		var internal_state := simulation.get("_state") as Dictionary
+		var flags := internal_state.get("flags", {}) as Dictionary
+		flags["telemetry_inspected"] = true
+		flags["power_panel_inspected"] = true
+		internal_state["room_id"] = "power_bay"
+		internal_state["carried_item"] = "phase_fuse"
+		var power_guide := simulation.snapshot().get("guidance", {}) as Dictionary
+		var power_example := str(power_guide.get("example_command", ""))
+		if _correct_cable(simulation) != "blue_cable":
+			saw_non_blue_power_answer = true
+		if not power_example.contains("<") \
+				or power_example.contains("蓝色") \
+				or power_example.contains("红色") \
+				or power_example.contains("黄色"):
+			unsafe_power_seeds.append(seed)
+
+		flags["grid_online"] = true
+		flags["manifold_inspected"] = true
+		flags["valves_aligned"] = false
+		internal_state["room_id"] = "coolant_gallery"
+		internal_state["carried_item"] = "sealant_kit"
+		var coolant_guide := simulation.snapshot().get("guidance", {}) as Dictionary
+		var coolant_example := str(coolant_guide.get("example_command", ""))
+		var coolant_targets := _coolant_targets(simulation)
+		if not coolant_targets.has("valve_i"):
+			saw_coolant_answer_without_i = true
+		if not coolant_example.contains("<") \
+				or coolant_example.contains("I 阀") \
+				or coolant_example.contains("B 阀") \
+				or coolant_example.contains("P 阀"):
+			unsafe_coolant_seeds.append(seed)
+
+	_expect(saw_non_blue_power_answer, "randomized audit includes power answers other than blue")
+	_expect(saw_coolant_answer_without_i, "randomized audit includes coolant answers that exclude I")
+	_expect(unsafe_power_seeds.is_empty(), "power guidance never suggests a concrete randomized answer: %s" % str(unsafe_power_seeds))
+	_expect(unsafe_coolant_seeds.is_empty(), "coolant guidance never suggests a concrete randomized answer: %s" % str(unsafe_coolant_seeds))
 
 
 func _test_character_arc_and_episodic_ending() -> void:

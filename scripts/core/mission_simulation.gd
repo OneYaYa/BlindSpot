@@ -960,7 +960,7 @@ func _guidance_view(flags: Dictionary, room_id: String, carried_item: String, ro
 					return _guide(
 						"match_power_clues",
 						"点击右侧一条 PWR-03 遥测和一条现场接头读数固定到工作台；找出阻值相同的接头，再明确下令连接。",
-						"连接蓝色套管接头",
+						"连接 <匹配的接头名称>",
 						["PWR-03", "蓝色套管接头", "红色陶瓷接头", "黄色编织接头"]
 					)
 				return _guide("retrieve_power_part", "电缆面板已检查，但缺少供电部件。经中央交汇舱返回中继控制室拿保险芯，或在中央舱拿旁路电芯。", "返回中央交汇舱", ["中央交汇舱", "相位保险芯", "应急旁路电芯"])
@@ -993,7 +993,7 @@ func _guidance_view(flags: Dictionary, room_id: String, carried_item: String, ro
 					return _guide(
 						"match_coolant_clues",
 						"点击右侧 CLT-04 目标压力和现场阀组读数固定到工作台；从当前压力组合增减量，明确下令接入或复位 I/B/P 阀。",
-						"接入 I 阀",
+						"接入或复位 <计算所得的阀门名称>",
 						["CLT-04", "I 阀", "B 阀", "P 阀"]
 					)
 				if carried_item == "sealant_kit":
