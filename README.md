@@ -56,7 +56,7 @@ Every room has its own visual landmark and radio layer. Lin Lan shifts between n
 
 ### Windows — recommended public build today
 
-The public v0.5.0 package has not been uploaded yet. When it is available, open [GitHub Releases](https://github.com/OneYaYa/BlindSpot/releases), download the newest `BlindspotRelay-Windows-*.zip`, extract it, and run `BlindspotRelay.exe`. The package is designed to include the Godot runtime and local relay, so players do not need Godot or Python. Public packages should never embed a personal API key; local fallback keeps the entire mission playable.
+The public v0.5.0 Windows demo is available on [GitHub Releases](https://github.com/OneYaYa/BlindSpot/releases/tag/v0.5.0). Download `BlindspotRelay-Windows-v0.5.0.zip`, extract it, and run `BlindspotRelay.exe`. The package includes the Godot runtime and local relay, so players do not need Godot or Python. It contains no API key; local fallback keeps the entire mission playable.
 
 ### Browser — planned low-friction build
 
