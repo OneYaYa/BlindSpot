@@ -175,14 +175,32 @@ def main() -> int:
             "完整的本地 NPC 模式。\n\n"
             f"配置页：{setup_url}"
         )
+    else:
+        setup_url = f"http://127.0.0.1:{_relay_port()}/setup"
+        model = str(health.get("model", "")).strip()
+        relay_status = (
+            "正在使用已经运行的本机中转服务。"
+            if relay_process is None
+            else "本机中转服务已启动。"
+        )
+        model_detail = f"\n当前模型：{model}" if model else ""
+        if not os.getenv("BLINDSPOT_SMOKE_QUIT_AFTER", "").strip():
+            _show_message(
+                "已检测到 API Key 配置，在线 AI 已启用。\n"
+                f"{relay_status}{model_detail}\n\n"
+                "如需更换或删除 API Key，请打开本机配置页：\n"
+                f"{setup_url}"
+            )
 
     try:
         game_args = [str(game_exe), "--main-pack", str(game_pack)]
         smoke_iterations = os.getenv("BLINDSPOT_SMOKE_QUIT_AFTER", "").strip()
         if smoke_iterations.isdigit():
             game_args.extend(["--headless", "--quit-after", smoke_iterations])
+        game_environment = os.environ.copy()
+        game_environment["BLINDSPOT_LAUNCHED_BY_LAUNCHER"] = "1"
         game_process = subprocess.Popen(
-            game_args, cwd=str(runtime_dir)
+            game_args, cwd=str(runtime_dir), env=game_environment
         )
         return int(game_process.wait())
     except OSError as exc:

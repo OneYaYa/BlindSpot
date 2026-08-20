@@ -5,6 +5,7 @@ const DecisionServiceClass := preload("res://scripts/services/npc_decision_servi
 const ContextCompilerClass := preload("res://scripts/services/npc_context_compiler.gd")
 const ProceduralAudioClass := preload("res://scripts/services/procedural_audio.gd")
 const CORE_SCRIPT_PATH := "res://scripts/core/mission_simulation.gd"
+const PACKAGED_LAUNCH_ENV := "BLINDSPOT_LAUNCHED_BY_LAUNCHER"
 
 @onready var ui: MissionConsoleUI = $MissionConsoleUI
 
@@ -20,6 +21,8 @@ var _last_player_message := ""
 
 
 func _ready() -> void:
+	if _reject_direct_packaged_launch():
+		return
 	_context_compiler = ContextCompilerClass.new() as NpcContextCompiler
 	_audio = ProceduralAudioClass.new()
 	_audio.name = "ProceduralAudio"
@@ -37,6 +40,25 @@ func _ready() -> void:
 	ui.settings_changed.connect(_on_settings_changed)
 	_on_settings_changed(ui.get_settings())
 	_initialize_simulation()
+
+
+func _reject_direct_packaged_launch() -> bool:
+	var executable_path := OS.get_executable_path()
+	var adjacent_pack_path := executable_path.get_basename() + ".pck"
+	if not FileAccess.file_exists(adjacent_pack_path):
+		return false
+	if OS.get_environment(PACKAGED_LAUNCH_ENV) == "1":
+		return false
+	var message := (
+		"请不要直接运行 _runtime/BlindspotGame.exe。\n\n"
+		+ "请返回解压目录的上一层，双击 BlindspotRelay.exe 启动游戏。"
+	)
+	if DisplayServer.get_name() == "headless":
+		push_error(message)
+	else:
+		OS.alert(message, "Blindspot Relay")
+	get_tree().quit(2)
+	return true
 
 
 func _initialize_simulation() -> void:
