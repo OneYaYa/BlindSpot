@@ -14,6 +14,7 @@ const BackdropClass := preload("res://scripts/ui/terminal_backdrop.gd")
 const FacilityMapClass := preload("res://scripts/ui/facility_node_map.gd")
 const PortraitClass := preload("res://scripts/ui/npc_portrait.gd")
 const SignalBootClass := preload("res://scripts/ui/signal_boot_overlay.gd")
+const UI_FONT_PATH := "res://assets/fonts/NotoSansMonoCJKsc-Regular.otf"
 
 const COLOR_BG := Color("071119")
 const COLOR_PANEL := Color("0b1a22")
@@ -1613,10 +1614,13 @@ func _apply_responsive_layout() -> void:
 
 func _create_theme() -> Theme:
 	var result := Theme.new()
-	var system_font := SystemFont.new()
-	system_font.font_names = PackedStringArray(["Cascadia Mono", "Consolas", "Noto Sans Mono CJK SC", "Microsoft YaHei UI"])
-	system_font.font_weight = 500
-	result.default_font = system_font
+	if OS.has_feature("web"):
+		result.default_font = load(UI_FONT_PATH) as Font
+	else:
+		var system_font := SystemFont.new()
+		system_font.font_names = PackedStringArray(["Cascadia Mono", "Consolas", "Noto Sans Mono CJK SC", "Microsoft YaHei UI"])
+		system_font.font_weight = 500
+		result.default_font = system_font
 	result.default_font_size = int(round(14.0 * float(_settings.get("font_scale", 1.0))))
 	result.set_color("font_color", "Label", COLOR_TEXT)
 	result.set_color("font_color", "Button", COLOR_TEXT)

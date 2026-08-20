@@ -10,6 +10,7 @@ import argparse
 from collections import defaultdict, deque
 import hashlib
 import json
+import mimetypes
 import os
 import re
 import sys
@@ -27,6 +28,7 @@ from typing import Any, Callable
 
 
 PROJECT_DIR = Path(__file__).resolve().parent
+WEB_DIR = PROJECT_DIR / "web"
 MAX_BODY_BYTES = 64 * 1024
 MAX_PLAYER_TEXT = 400
 MAX_HISTORY_ITEMS = 12
@@ -1031,9 +1033,17 @@ class BlindspotHandler(BaseHTTPRequestHandler):
 
     def _origin_allowed(self) -> bool:
         origin = self.headers.get("Origin", "")
-        return not origin or re.fullmatch(
-            r"https?://(?:127\.0\.0\.1|localhost)(?::\d+)?", origin
-        ) is not None
+        if not origin:
+            return True
+        try:
+            parsed = urllib.parse.urlsplit(origin)
+        except ValueError:
+            return False
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            return False
+        if parsed.hostname in {"127.0.0.1", "localhost", "::1"}:
+            return True
+        return parsed.netloc.lower() == self.headers.get("Host", "").lower()
 
     def _setup_request_allowed(self) -> bool:
         settings: Settings = self.server.settings  # type: ignore[attr-defined]
@@ -1098,6 +1108,43 @@ class BlindspotHandler(BaseHTTPRequestHandler):
         self.send_header("X-Frame-Options", "DENY")
         self.end_headers()
         self.wfile.write(body)
+
+    def _write_static(self, path: Path) -> None:
+        content_length = path.stat().st_size
+        content_type = {
+            ".html": "text/html; charset=utf-8",
+            ".js": "text/javascript; charset=utf-8",
+            ".wasm": "application/wasm",
+            ".pck": "application/octet-stream",
+            ".png": "image/png",
+            ".svg": "image/svg+xml",
+            ".ico": "image/x-icon",
+        }.get(path.suffix.lower(), mimetypes.guess_type(path.name)[0] or "application/octet-stream")
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(content_length))
+        self.send_header("Cache-Control", "no-cache" if path.suffix.lower() == ".html" else "public, max-age=3600")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.end_headers()
+        with path.open("rb") as source:
+            while chunk := source.read(64 * 1024):
+                self.wfile.write(chunk)
+
+    def _serve_web_asset(self, request_path: str) -> bool:
+        web_root: Path | None = self.server.web_root  # type: ignore[attr-defined]
+        if web_root is None:
+            return False
+        relative = "index.html" if request_path == "/" else urllib.parse.unquote(request_path).lstrip("/")
+        candidate = (web_root / relative).resolve()
+        try:
+            candidate.relative_to(web_root)
+        except ValueError:
+            return False
+        if not candidate.is_file():
+            return False
+        self._write_static(candidate)
+        return True
 
     def _read_json_payload(self) -> dict[str, Any]:
         try:
@@ -1193,7 +1240,9 @@ class BlindspotHandler(BaseHTTPRequestHandler):
                 },
             )
             return
-        if path != "/health":
+        if path not in {"/health", "/api/health"}:
+            if not path.startswith("/api/") and self._serve_web_asset(path):
+                return
             self._write_json(404, {"ok": False, "error": "not found"})
             return
         settings: Settings = self.server.settings  # type: ignore[attr-defined]
@@ -1272,6 +1321,8 @@ class BlindspotHandler(BaseHTTPRequestHandler):
 def create_server(settings: Settings) -> ThreadingHTTPServer:
     server = ThreadingHTTPServer((settings.host, settings.port), BlindspotHandler)
     server.settings = settings  # type: ignore[attr-defined]
+    requested_web_root = Path(os.getenv("BLINDSPOT_WEB_ROOT", str(WEB_DIR))).resolve()
+    server.web_root = requested_web_root if (requested_web_root / "index.html").is_file() else None  # type: ignore[attr-defined]
     server.metrics = {  # type: ignore[attr-defined]
         "requests": 0,
         "completed": 0,

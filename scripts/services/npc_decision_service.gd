@@ -26,7 +26,11 @@ func _ready() -> void:
 	_http = HTTPRequest.new()
 	_http.name = "NpcDecisionHttp"
 	_http.timeout = request_timeout_seconds
-	_http.use_threads = true
+	_http.use_threads = not OS.has_feature("web")
+	if OS.has_feature("web"):
+		var browser_origin: Variant = JavaScriptBridge.eval("window.location.origin")
+		if browser_origin is String and not str(browser_origin).is_empty():
+			endpoint = str(browser_origin).trim_suffix("/") + "/api/npc/decide"
 	add_child(_http)
 	_http.request_completed.connect(_on_request_completed)
 	status_changed.emit("local_ready", "在线服务未探测；故障时自动使用本地规则")

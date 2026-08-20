@@ -16,6 +16,8 @@
 </p>
 
 <p align="center">
+  <a href="https://blindspot-relay.onrender.com"><strong>▶ PLAY IN BROWSER</strong></a>
+  &nbsp; · &nbsp;
   <a href="https://github.com/OneYaYa/BlindSpot/releases"><strong>⬇ WINDOWS DEMO / RELEASES</strong></a>
 </p>
 
@@ -54,15 +56,17 @@ Every room has its own visual landmark and radio layer. Lin Lan shifts between n
 
 ## Play the Demo
 
-### Windows — recommended public build today
+### Browser — play instantly, no API key required
+
+Play the current Godot build at **[blindspot-relay.onrender.com](https://blindspot-relay.onrender.com)**. The game, authoritative simulation, and AI NPC all run through one same-origin Render service. The provider credential remains server-side and is never shipped to the browser. No download, account, Godot installation, or personal API key is required.
+
+The Web build uses a browser-safe single-thread export and bundled Chinese font. Runtime-generated radio audio is currently disabled on Web for compatibility; use the Windows build for the complete audio presentation. A free Render instance may need a short cold start after inactivity.
+
+### Windows — full local build
 
 The public v0.5.2 Windows demo is available on [GitHub Releases](https://github.com/OneYaYa/BlindSpot/releases/tag/v0.5.2). Download `BlindspotRelay-Windows-v0.5.2.zip`, extract it, and run `BlindspotRelay.exe`. The package includes the Godot runtime and local relay, so players do not need Godot or Python. It contains no developer API key; local fallback keeps the entire mission playable. When no online provider is configured, the launcher opens a local-only setup page where players can add their own credential, encrypted for their Windows account with DPAPI. If a credential is already configured, the launcher confirms that online AI is enabled. The internal game executable now directs players back to the one-click launcher when opened by mistake.
 
-### Browser — planned low-friction build
-
-Godot can export this GDScript project to WebAssembly, and Render can host it. Blindspot still needs a dedicated Web export, same-origin HTTPS API routing, browser-safe request threading, and an audio fallback before a public URL is honest to advertise. The recommended target is one Render Web Service that serves both the Godot export and the Python relay, keeping the model key server-side.
-
-See [Demo Distribution](docs/DEMO_DISTRIBUTION.md) for the checked rollout plan and current blockers.
+See [Demo Distribution](docs/DEMO_DISTRIBUTION.md) for build, hosting, security, and compatibility details.
 
 <details>
 <summary><strong>Run from source</strong></summary>
@@ -86,8 +90,8 @@ Blindspot uses a Godot 4.6 authoritative simulation, a least-privilege NPC conte
 
 Current regression baseline:
 
-- Python: 27 tests
-- Godot simulation: 250 checks
+- Python: 37 tests
+- Godot simulation: 254 checks
 - Godot integration: 100 checks
 - Chinese live AI experience set: 12 cases covering persona, grounding, leakage, action safety, repetition, latency, usage, failures, and fallback
 

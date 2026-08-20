@@ -16,6 +16,8 @@
 </p>
 
 <p align="center">
+  <a href="https://blindspot-relay.onrender.com"><strong>▶ 网页直接试玩</strong></a>
+  &nbsp; · &nbsp;
   <a href="https://github.com/OneYaYa/BlindSpot/releases"><strong>⬇ WINDOWS DEMO / RELEASES</strong></a>
 </p>
 
@@ -54,15 +56,17 @@ K-17 设施正在失效。你是远程调度员，能读取残缺的全局遥测
 
 ## 试玩 Demo
 
-### Windows：目前最适合公开发布
+### 浏览器：直接试玩，不需要 API Key
+
+打开 **[blindspot-relay.onrender.com](https://blindspot-relay.onrender.com)** 即可游玩当前 Godot 版本。游戏、权威模拟器和 AI NPC 通过同一个 Render 域名运行；模型凭据只保存在服务端，不会打进浏览器文件。玩家不需要下载、注册、安装 Godot，也不需要填写自己的 API Key。
+
+Web 版采用浏览器安全的单线程导出并内置中文字体。为保证兼容性，网页暂时关闭运行时生成的无线电音频；希望体验完整音频表现时请使用 Windows 版。Render 免费实例长时间无人访问后，首次打开可能需要短暂冷启动。
+
+### Windows：完整本地版本
 
 公开 v0.5.2 Windows 试玩版已发布到 [GitHub Releases](https://github.com/OneYaYa/BlindSpot/releases/tag/v0.5.2)。下载 `BlindspotRelay-Windows-v0.5.2.zip`，完整解压后运行 `BlindspotRelay.exe`。发行包已经包含 Godot 运行时与本地代理，玩家不需要安装 Godot 或 Python。压缩包不包含开发者 API Key；没有在线模型时，本地规则仍可完整通关。未配置在线服务时，启动器会自动打开仅限本机的配置页，玩家可填入自己的 Key；凭据会使用 Windows DPAPI 加密并绑定当前系统账户。已经配置 Key 时，启动器会明确提示在线 AI 已启用；如果误开 `_runtime/BlindspotGame.exe`，游戏会引导玩家返回外层启动器。
 
-### 浏览器：计划中的低门槛版本
-
-Godot 可以把这个 GDScript 工程导出为 WebAssembly，Render 也可以承载它。但 Blindspot 还需要增加专用 Web 导出、同源 HTTPS API、浏览器安全的请求线程配置和音频降级，之后才适合公开宣传网址。推荐目标是一个 Render Web Service 同时提供 Godot 网页文件和 Python AI 中继，让模型密钥始终留在服务端。
-
-经过核对的上线步骤与当前阻碍见 [Demo 发布方案](docs/DEMO_DISTRIBUTION.md)。
+构建、托管、安全与兼容性说明见 [Demo 发布方案](docs/DEMO_DISTRIBUTION.md)。
 
 <details>
 <summary><strong>从源码运行</strong></summary>
@@ -86,8 +90,8 @@ Blindspot 使用 Godot 4.6 权威模拟器、最小权限 NPC 上下文编译器
 
 当前回归基线：
 
-- Python：27 项测试
-- Godot 权威模拟：250 项检查
+- Python：37 项测试
+- Godot 权威模拟：254 项检查
 - Godot 主流程集成：100 项检查
 - 中文在线 AI 体验集：12 个用例，覆盖人格、事实、泄漏、动作、复读、延迟、请求、失败与回退
 

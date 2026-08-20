@@ -16,7 +16,7 @@ var _scene_signature := ""
 func _ready() -> void:
 	# Headless test/export scans have no audible output and may terminate before
 	# the dummy audio thread releases generated WAV playbacks.
-	if DisplayServer.get_name() == "headless":
+	if DisplayServer.get_name() == "headless" or OS.has_feature("web"):
 		return
 	_ambient = AudioStreamPlayer.new()
 	_ambient.name = "RadioAmbience"

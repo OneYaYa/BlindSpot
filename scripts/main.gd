@@ -43,6 +43,8 @@ func _ready() -> void:
 
 
 func _reject_direct_packaged_launch() -> bool:
+	if OS.has_feature("web"):
+		return false
 	var executable_path := OS.get_executable_path()
 	var adjacent_pack_path := executable_path.get_basename() + ".pck"
 	if not FileAccess.file_exists(adjacent_pack_path):

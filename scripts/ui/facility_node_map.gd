@@ -13,14 +13,17 @@ const ACTIVE := Color("d6a552")
 const SAFE := Color("61baa3")
 const DANGER := Color("d35e57")
 const MUTED := Color("789198")
+const UI_FONT_PATH := "res://assets/fonts/NotoSansMonoCJKsc-Regular.otf"
 
 var _rooms: Array[Dictionary] = []
 var _links: Array[Dictionary] = []
 var _npc_room := ""
 var _selected_room := ""
+var _ui_font: Font
 
 
 func _ready() -> void:
+	_ui_font = load(UI_FONT_PATH) as Font if OS.has_feature("web") else ThemeDB.fallback_font
 	custom_minimum_size = Vector2(320, 230)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_set_defaults()
@@ -59,7 +62,7 @@ func _draw() -> void:
 		draw_circle(centers[from_id].lerp(centers[to_id], 0.5), 3.0, color)
 	for room: Dictionary in _rooms:
 		_draw_room(room, centers.get(str(room.get("id", "")), Vector2.ZERO))
-	draw_string(ThemeDB.fallback_font, Vector2(12, 20), "FACILITY ROUTING / 设施链路", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, MUTED)
+	draw_string(_ui_font, Vector2(12, 20), "FACILITY ROUTING / 设施链路", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, MUTED)
 
 
 func _draw_room(room: Dictionary, center: Vector2) -> void:
@@ -81,9 +84,9 @@ func _draw_room(room: Dictionary, center: Vector2) -> void:
 	if room_id == _npc_room:
 		draw_circle(Vector2(rect.position.x + 9, rect.position.y + 9), 4.0, ACTIVE)
 	var label := str(room.get("label", room.get("name", room_id))).left(12)
-	draw_string(ThemeDB.fallback_font, center + Vector2(-36, 5), label, HORIZONTAL_ALIGNMENT_CENTER, 72, 12, Color("d7e2d8"))
+	draw_string(_ui_font, center + Vector2(-36, 5), label, HORIZONTAL_ALIGNMENT_CENTER, 72, 12, Color("d7e2d8"))
 	var code := str(room.get("code", room_id)).to_upper().left(8)
-	draw_string(ThemeDB.fallback_font, center + Vector2(-36, 19), code, HORIZONTAL_ALIGNMENT_CENTER, 72, 9, MUTED)
+	draw_string(_ui_font, center + Vector2(-36, 19), code, HORIZONTAL_ALIGNMENT_CENTER, 72, 9, MUTED)
 
 
 func _room_centers() -> Dictionary:

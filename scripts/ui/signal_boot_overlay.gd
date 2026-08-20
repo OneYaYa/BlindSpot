@@ -12,9 +12,11 @@ const AMBER := Color("d3a354")
 const RED := Color("df6159")
 const MUTED := Color("789398")
 const INK := Color("020609")
+const UI_FONT_PATH := "res://assets/fonts/NotoSansMonoCJKsc-Regular.otf"
 
 static var _played_this_process := false
 
+var _ui_font: Font
 var _screen_layer: Control
 var _original_position := Vector2.ZERO
 var _original_modulate := Color.WHITE
@@ -30,6 +32,7 @@ func configure(screen_layer: Control) -> void:
 
 
 func _ready() -> void:
+	_ui_font = load(UI_FONT_PATH) as Font if OS.has_feature("web") else ThemeDB.fallback_font
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	z_index = 500
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -240,7 +243,7 @@ func _draw_noise_bands() -> void:
 
 
 func _draw_boot_copy() -> void:
-	var font := ThemeDB.fallback_font
+	var font := _ui_font
 	var top_color := RED if _phase == "lost_retry" else GREEN if _phase == "locking" else CYAN
 	draw_string(font, Vector2(28, 34), "BR//07  RELAY HANDSHAKE", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(top_color, 0.90))
 	draw_string(font, Vector2(size.x - 196, 34), "K-17 / CH 02", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(MUTED, 0.88))
