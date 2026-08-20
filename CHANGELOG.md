@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.2
+
+- 已配置 API Key 时，Windows 启动器会在启动阶段确认在线 AI 已启用，并显示当前模型与本机配置页地址。
+- 直接打开 `_runtime/BlindspotGame.exe` 时会显示正确启动方式并退出，避免绕过本地 AI 中转和首次配置流程。
+- 新增 Render Blueprint，支持从 GitHub 部署 AI 中转服务；公开仓库仍不保存 API Key。
+- 新增启动器自动化回归，并从 Godot 导出中排除本地 `build/` 产物。
+
 ## 0.5.1
 
 - Windows 下载包新增仅限 `127.0.0.1` 的本机配置页，未配置时由启动器自动打开；玩家可以粘贴、修改或删除自己的 API Key。
