@@ -41,10 +41,16 @@ func _ready() -> void:
 	_check(left_panel != null and left_panel.custom_minimum_size.x >= 350.0, "facility panel should stay wide enough to reduce wrapped scrolling in the 1280 layout")
 	_check(right_panel != null and right_panel.custom_minimum_size.x <= 280.0, "1280 layout should compact the operator rail before it can overflow")
 	_check(right_panel != null and right_panel.get_global_rect().end.x <= ui.get_global_rect().end.x - 8.0, "operator rail should remain fully inside the visible console")
-	_check(objective_text != null and objective_text.custom_minimum_size.y >= 150.0, "objective, next step and system feed should have a taller reading area")
+	_check(objective_text != null and objective_text.custom_minimum_size.y >= 90.0, "short web layouts should retain a readable objective area")
 	_check(objective_text != null and objective_text.text.contains("NEXT / 现在做什么") and objective_text.text.contains("检查遥测台"), "left panel should lead with an exact first step")
 	_check(objective_text != null and objective_text.text.contains("输入指令 → AI 提出动作 → 右侧授权执行"), "left panel should explain the command and authorization loop")
-	_check(observation_text != null and observation_text.custom_minimum_size.y >= 126.0, "local observation should have a taller reading area")
+	_check(observation_text != null and observation_text.custom_minimum_size.y >= 80.0, "short web layouts should retain a readable local observation")
+	var body_scroll := ui.get("_body_scroll") as ScrollContainer
+	var composer_panel := ui.get("_composer_panel") as PanelContainer
+	var message_input_visibility := ui.get("_message_input") as LineEdit
+	_check(body_scroll != null and body_scroll.vertical_scroll_mode == ScrollContainer.SCROLL_MODE_AUTO, "mission body should scroll instead of pushing the composer below the viewport")
+	_check(composer_panel != null and composer_panel.get_global_rect().end.y <= ui.get_global_rect().end.y, "persistent composer should remain inside a 1280x720 viewport")
+	_check(message_input_visibility != null and message_input_visibility.get_global_rect().end.y <= ui.get_global_rect().end.y, "message input must remain visible on laptop-height web layouts")
 	var facility_map := ui.get("_facility_map") as Control
 	var evidence_scroll := ui.get("_evidence_scroll") as ScrollContainer
 	var candidate_header := ui.get("_candidate_header") as Label
@@ -288,6 +294,37 @@ func _ready() -> void:
 	ui.call("render_snapshot", terminal_snapshot)
 	var terminal_visual := portrait.call("get_debug_visual_state") as Dictionary
 	_check(str(terminal_visual.get("condition", "")) == "terminal", "terminal mission state should override the character condition")
+
+	var outcome_dialog := ui.get("_outcome_dialog") as AcceptDialog
+	if outcome_dialog != null:
+		outcome_dialog.hide()
+	var rich_outcome_snapshot := low_oxygen_snapshot.duplicate(true)
+	rich_outcome_snapshot["is_terminal"] = true
+	rich_outcome_snapshot["outcome"] = "success"
+	rich_outcome_snapshot["debrief"] = {
+		"title": "完整撤离",
+		"body": "林岚已安全抵达撤离舱。",
+		"consequence": "完整遥测将用于追查 K-17 事故责任。",
+		"player_name": "陈锋",
+		"promises": ["我会带你出去。"],
+		"recalled_quote": "我会带你出去。",
+		"canceled_dangerous_actions": [{"turn": 4, "label": "连接红色接头"}],
+		"trust_history": [{"delta": 5, "reason": "安抚并保持联络"}],
+		"active_response": "陈锋，我出来了。你说过会带我出去。",
+		"closing_line": "信号仍在。",
+		"key_moment": "你叫停了错误接线。",
+		"initial_trust": 50,
+		"trust": 60,
+		"trust_change": 10,
+	}
+	ui.call("show_outcome", "success", rich_outcome_snapshot)
+	_check(outcome_dialog != null and outcome_dialog.dialog_text.contains("陈锋"), "ending should recall the player's name")
+	_check(outcome_dialog != null and outcome_dialog.dialog_text.contains("我会带你出去"), "ending should recall a promise and a key quote")
+	_check(outcome_dialog != null and outcome_dialog.dialog_text.contains("连接红色接头"), "ending should recall a canceled dangerous action")
+	_check(outcome_dialog != null and outcome_dialog.dialog_text.contains("安抚并保持联络"), "ending should itemize trust changes")
+	_check(outcome_dialog != null and outcome_dialog.dialog_text.contains("陈锋，我出来了"), "clean extraction should include Lin Lan's active response")
+	_check(outcome_dialog != null and outcome_dialog.dialog_text.contains("OXYGEN:"), "ending statistics should use a Web-safe oxygen label")
+	_check(outcome_dialog != null and not outcome_dialog.dialog_text.contains("₂"), "ending statistics should not contain the unsupported O2 subscript glyph")
 
 	print("Blindspot Relay integration tests: %d checks, %d failures" % [_checks, _failures])
 	main.queue_free()

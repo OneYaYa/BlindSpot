@@ -155,10 +155,12 @@ func _on_message_submitted(text: String) -> void:
 	ui.append_dialogue("OPERATOR", text, "player")
 	ui.set_thinking(true)
 	ui.show_candidate("")
+	_remember_player_facts(text)
+	if _simulation.has_method("set_conversation_facts"):
+		_simulation.call("set_conversation_facts", _conversation_facts.duplicate(true))
 	var context := _build_npc_context(text)
 	_decision_service.request_decision(context, text)
 	_last_player_message = text
-	_remember_player_facts(text)
 	_record_conversation("player", text)
 
 

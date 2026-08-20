@@ -266,6 +266,10 @@ func _test_randomized_guidance_never_suggests_answer() -> void:
 
 func _test_character_arc_and_episodic_ending() -> void:
 	var simulation: MissionSimulation = _new_simulation()
+	simulation.set_conversation_facts({
+		"player_name": "陈锋",
+		"promises": ["我会一直在线，也一定带你出去。"],
+	})
 	var after_scan := _execute(simulation, "inspect", "telemetry_console")
 	var scan_event := after_scan.get("event", {}) as Dictionary
 	_expect(not str(scan_event.get("npc_line", "")).is_empty(), "first telemetry scan reveals a personal-history voice line")
@@ -313,6 +317,8 @@ func _test_character_arc_and_episodic_ending() -> void:
 	_execute(simulation, "move", "central_junction")
 	_execute(simulation, "move", "power_bay")
 	_execute(simulation, "inspect", "cable_panel")
+	var canceled_proposal := simulation.propose("connect", _wrong_cable(simulation))
+	simulation.confirm(int(canceled_proposal.get("proposal_id", -1)), false)
 	_confirm_action(simulation, "connect", _correct_cable(simulation))
 	_execute(simulation, "use", "phase_fuse")
 	_execute(simulation, "take", "sealant_kit")
@@ -329,6 +335,11 @@ func _test_character_arc_and_episodic_ending() -> void:
 	_expect(not str(ending.get("recalled_quote", "")).is_empty(), "ending recalls a player-authored line")
 	_expect(not str(ending.get("key_moment", "")).is_empty(), "ending calls back a key run event")
 	_expect(not str(ending.get("closing_line", "")).is_empty(), "ending resolves the relationship with a character-specific closing line")
+	_expect_equal(str(ending.get("player_name", "")), "陈锋", "ending recalls the player's name")
+	_expect(not (ending.get("promises", []) as Array).is_empty(), "ending recalls structured player promises")
+	_expect(not (ending.get("canceled_dangerous_actions", []) as Array).is_empty(), "ending recalls a canceled dangerous operation")
+	_expect(not (ending.get("trust_history", []) as Array).is_empty(), "ending reports the run's individual trust changes even when the net value returns to neutral")
+	_expect(str(ending.get("active_response", "")).contains("陈锋") and str(ending.get("active_response", "")).contains("我出来了"), "clean extraction gives Lin Lan a direct named response")
 	_expect((simulation.snapshot().get("arc_progress", []) as Array).size() >= 4, "clean route reveals at least four personal-history beats")
 
 
@@ -407,7 +418,11 @@ func _test_emergency_route_and_oxygen_branch() -> void:
 	_execute(simulation, "move", "central_junction")
 	_execute(simulation, "move", "escape_pod")
 	_execute(simulation, "use", "launch_console")
-	_expect_equal(str(simulation.snapshot().get("outcome", "")), "costly_success", "emergency route reaches a deliberate costly success")
+	var costly_snapshot := simulation.snapshot()
+	_expect_equal(str(costly_snapshot.get("outcome", "")), "costly_success", "emergency route reaches a deliberate costly success")
+	var costly_debrief := costly_snapshot.get("debrief", {}) as Dictionary
+	_expect(str(costly_debrief.get("consequence", "")).contains("诊断缓存") and str(costly_debrief.get("consequence", "")).contains("证词"), "emergency ending names the destroyed evidence and investigation consequence")
+	_expect(str(costly_debrief.get("active_response", "")).contains("诊断记录烧没了"), "costly extraction gives Lin Lan a specific direct response")
 
 
 func _test_illegal_actions_and_carry_slot() -> void:
@@ -441,6 +456,7 @@ func _test_danger_confirmation_can_cancel() -> void:
 	_expect_equal(str(canceled.get("status", "")), "canceled", "dangerous action can be canceled")
 	_expect_equal(simulation.snapshot().get("resources", {}), before.get("resources", {}), "canceled danger consumes no resources")
 	_expect((simulation.snapshot().get("pending_confirmation", {}) as Dictionary).is_empty(), "cancel clears pending confirmation")
+	_expect_equal((simulation.snapshot().get("canceled_dangerous_actions", []) as Array).size(), 1, "cancel is retained for the ending debrief")
 
 
 func _test_wrong_cable_costly_completion() -> void:

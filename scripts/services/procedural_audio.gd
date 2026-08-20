@@ -3,6 +3,28 @@ extends Node
 
 
 const MIX_RATE := 22050
+const WEB_AMBIENT: AudioStream = preload("res://assets/audio/web/radio_ambient_loop.ogg")
+const WEB_ROOMS: Dictionary = {
+	"relay_control": preload("res://assets/audio/web/room_relay_control_loop.ogg"),
+	"central_junction": preload("res://assets/audio/web/room_central_junction_loop.ogg"),
+	"power_bay": preload("res://assets/audio/web/room_power_bay_loop.ogg"),
+	"coolant_gallery": preload("res://assets/audio/web/room_coolant_gallery_loop.ogg"),
+	"escape_pod": preload("res://assets/audio/web/room_escape_pod_loop.ogg"),
+}
+const WEB_BREATHING: Dictionary = {
+	"low": preload("res://assets/audio/web/breathing_low_loop.ogg"),
+	"critical": preload("res://assets/audio/web/breathing_critical_loop.ogg"),
+}
+const WEB_CUES: Dictionary = {
+	"message": preload("res://assets/audio/web/cue_message.ogg"),
+	"candidate": preload("res://assets/audio/web/cue_candidate.ogg"),
+	"hazard": preload("res://assets/audio/web/cue_hazard.ogg"),
+	"failure": preload("res://assets/audio/web/cue_failure.ogg"),
+	"power_lock": preload("res://assets/audio/web/cue_power_lock.ogg"),
+	"bypass_burn": preload("res://assets/audio/web/cue_bypass_burn.ogg"),
+	"seal_release": preload("res://assets/audio/web/cue_seal_release.ogg"),
+	"launch": preload("res://assets/audio/web/cue_launch.ogg"),
+}
 
 var _ambient: AudioStreamPlayer
 var _environment: AudioStreamPlayer
@@ -11,12 +33,13 @@ var _cue: AudioStreamPlayer
 var _volume := 0.65
 var _muted := false
 var _scene_signature := ""
+var _scene_powered := false
 
 
 func _ready() -> void:
 	# Headless test/export scans have no audible output and may terminate before
 	# the dummy audio thread releases generated WAV playbacks.
-	if DisplayServer.get_name() == "headless" or OS.has_feature("web"):
+	if DisplayServer.get_name() == "headless":
 		return
 	_ambient = AudioStreamPlayer.new()
 	_ambient.name = "RadioAmbience"
@@ -30,7 +53,7 @@ func _ready() -> void:
 	_cue = AudioStreamPlayer.new()
 	_cue.name = "InterfaceCue"
 	add_child(_cue)
-	_ambient.stream = _build_stream("ambient", 2.0, true)
+	_ambient.stream = _looped_stream(WEB_AMBIENT) if OS.has_feature("web") else _build_stream("ambient", 2.0, true)
 	_apply_volume()
 	_ambient.play()
 
@@ -59,8 +82,11 @@ func configure(volume: float, muted: bool = false) -> void:
 func play_cue(cue_name: String) -> void:
 	if _muted or _volume <= 0.001 or not is_instance_valid(_cue):
 		return
-	var duration := 0.62 if cue_name in ["bypass_burn", "launch"] else 0.46 if cue_name in ["power_lock", "seal_release", "hazard", "failure"] else 0.22
-	_cue.stream = _build_stream(cue_name, duration, false)
+	if OS.has_feature("web"):
+		_cue.stream = WEB_CUES.get(cue_name, WEB_CUES["message"]) as AudioStream
+	else:
+		var duration := 0.62 if cue_name in ["bypass_burn", "launch"] else 0.46 if cue_name in ["power_lock", "seal_release", "hazard", "failure"] else 0.22
+		_cue.stream = _build_stream(cue_name, duration, false)
 	_cue.play()
 
 
@@ -72,15 +98,26 @@ func update_scene(snapshot: Dictionary) -> void:
 	var oxygen := int(resources.get("oxygen", 100))
 	var flags: Dictionary = snapshot.get("flags", {}) as Dictionary
 	var power_state := "powered" if bool(flags.get("grid_online", false)) else "damaged"
+	_scene_powered = power_state == "powered"
 	var oxygen_band := "critical" if oxygen <= 25 else "low" if oxygen <= 50 else "stable"
 	var signature := "%s:%s:%s" % [room_id, power_state, oxygen_band]
 	if signature == _scene_signature:
 		return
 	_scene_signature = signature
-	_environment.stream = _build_stream("room_%s_%s" % [room_id, power_state], 2.8, true)
+	if OS.has_feature("web"):
+		var room_stream: AudioStream = WEB_ROOMS.get(room_id, WEB_ROOMS["relay_control"]) as AudioStream
+		_environment.stream = _looped_stream(room_stream)
+		_environment.pitch_scale = 1.02 if _scene_powered else 0.92
+	else:
+		_environment.stream = _build_stream("room_%s_%s" % [room_id, power_state], 2.8, true)
+		_environment.pitch_scale = 1.0
 	_environment.play()
 	if oxygen <= 50:
-		_breathing.stream = _build_stream("breathing_%s" % oxygen_band, 2.4, true)
+		_breathing.stream = (
+			_looped_stream(WEB_BREATHING[oxygen_band] as AudioStream)
+			if OS.has_feature("web")
+			else _build_stream("breathing_%s" % oxygen_band, 2.4, true)
+		)
 		_breathing.play()
 	else:
 		_breathing.stop()
@@ -94,10 +131,17 @@ func _apply_volume() -> void:
 	var linear := 0.0001 if _muted else maxf(_volume, 0.0001)
 	_ambient.volume_db = linear_to_db(linear * 0.20)
 	if is_instance_valid(_environment):
-		_environment.volume_db = linear_to_db(linear * 0.16)
+		_environment.volume_db = linear_to_db(linear * (0.18 if _scene_powered else 0.15))
 	if is_instance_valid(_breathing):
 		_breathing.volume_db = linear_to_db(linear * 0.22)
 	_cue.volume_db = linear_to_db(linear * 0.62)
+
+
+func _looped_stream(source: AudioStream) -> AudioStream:
+	var stream := source.duplicate() as AudioStream
+	if stream is AudioStreamOggVorbis:
+		(stream as AudioStreamOggVorbis).loop = true
+	return stream
 
 
 func _build_stream(kind: String, duration: float, looped: bool) -> AudioStreamWAV:

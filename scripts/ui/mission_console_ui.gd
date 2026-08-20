@@ -94,9 +94,12 @@ var _outcome_dialog: AcceptDialog
 var _screen_layer: Control
 var _intro_overlay: SignalBootOverlay
 var _backdrop: Control
+var _body_scroll: ScrollContainer
 var _body: HBoxContainer
 var _left_panel: Control
 var _right_panel: Control
+var _center_upper: HBoxContainer
+var _composer_panel: PanelContainer
 var _facility_detail_nodes: Array[Control] = []
 var _evidence_scroll: ScrollContainer
 var _candidate_separator: HSeparator
@@ -297,6 +300,12 @@ func show_candidate(action_id: String, target: String = "") -> void:
 	_status_line.text = "收到一项行动请求；未授权前不会改变世界状态"
 	_apply_progressive_disclosure(_snapshot)
 	_refresh_portrait()
+	call_deferred("_reveal_candidate_card")
+
+
+func _reveal_candidate_card() -> void:
+	if is_instance_valid(_body_scroll) and is_instance_valid(_candidate_panel) and _candidate_panel.visible:
+		_body_scroll.ensure_control_visible(_candidate_panel)
 
 
 func present_confirmation(proposal: Dictionary) -> void:
@@ -344,13 +353,49 @@ func show_outcome(outcome: String, snapshot: Dictionary = {}) -> void:
 	var resources: Dictionary = _dictionary(snapshot.get("resources", {}))
 	var debrief: Dictionary = _dictionary(snapshot.get("debrief", {}))
 	_outcome_dialog.title = str(debrief.get("title", title))
+	var player_name := str(debrief.get("player_name", "")).strip_edges()
+	var identity_block := "\n\n调度员：%s" % player_name if not player_name.is_empty() else ""
+	var promises: Array = debrief.get("promises", []) as Array
+	var promise_lines: Array[String] = []
+	for value: Variant in promises:
+		var promise := str(value).strip_edges()
+		if not promise.is_empty():
+			promise_lines.append("• %s" % promise)
+	var promise_block := "\n\n承诺回收：\n%s" % "\n".join(promise_lines) if not promise_lines.is_empty() else ""
 	var recalled_quote := str(debrief.get("recalled_quote", "")).strip_edges()
 	var recalled_block := "\n\n他记住了你的话：\n“%s”" % recalled_quote if not recalled_quote.is_empty() else ""
-	_outcome_dialog.dialog_text = "%s\n\n%s\n\n关键时刻：%s%s\n\n%s\n\nOUTCOME: %s\nSCENARIO: %s\nROUTE: %s\nTURN: %s\nCOMM CYCLES: %s\nO₂: %s\nPOWER: %s\nMISTAKES: %s\n关系：%s\n\n可从右上角重新开始新的事故变体。" % [
+	var canceled: Array = debrief.get("canceled_dangerous_actions", []) as Array
+	var canceled_lines: Array[String] = []
+	for value: Variant in canceled:
+		if value is Dictionary:
+			var entry := value as Dictionary
+			canceled_lines.append("• TURN %02d：%s" % [int(entry.get("turn", 0)), str(entry.get("label", "危险操作"))])
+	var canceled_block := "\n\n你叫停过的危险操作：\n%s" % "\n".join(canceled_lines) if not canceled_lines.is_empty() else ""
+	var trust_events: Array = debrief.get("trust_history", []) as Array
+	var trust_event_lines: Array[String] = []
+	for value: Variant in trust_events:
+		if value is Dictionary:
+			var trust_event := value as Dictionary
+			var delta := int(trust_event.get("delta", 0))
+			if delta != 0:
+				trust_event_lines.append("• %s%d  %s" % ["+" if delta > 0 else "", delta, str(trust_event.get("reason", "关系变化"))])
+	var trust_history_block := "\n\n信任变化：\n%s" % "\n".join(trust_event_lines) if not trust_event_lines.is_empty() else ""
+	var active_response := str(debrief.get("active_response", "")).strip_edges()
+	var response_block := "林岚 / 主动回应：\n“%s”\n\n" % active_response if not active_response.is_empty() else ""
+	var initial_trust := int(debrief.get("initial_trust", 50))
+	var final_trust := int(debrief.get("trust", initial_trust))
+	var trust_change := int(debrief.get("trust_change", final_trust - initial_trust))
+	var trust_sign := "+" if trust_change > 0 else ""
+	_outcome_dialog.dialog_text = "%s%s\n\n%s\n\n关键时刻：%s%s%s%s%s%s\n\n%s\n\nOUTCOME: %s\nSCENARIO: %s\nROUTE: %s\nTURN: %s\nCOMM CYCLES: %s\nOXYGEN: %s\nPOWER: %s\nMISTAKES: %s\nTRUST: %d → %d (%s%d)\n关系：%s\n\n可从右上角重新开始新的事故变体。" % [
+		response_block,
 		str(debrief.get("body", "任务记录已封存。")),
 		str(debrief.get("consequence", "事故后果等待归档。")),
 		str(debrief.get("key_moment", "你们完成了最后一次核对。")),
+		identity_block,
+		promise_block,
 		recalled_block,
+		canceled_block,
+		trust_history_block,
 		str(debrief.get("closing_line", "中继记录到此结束。")),
 		outcome.to_upper(),
 		str(debrief.get("scenario_id", snapshot.get("scenario_id", "--"))),
@@ -360,9 +405,17 @@ func show_outcome(outcome: String, snapshot: Dictionary = {}) -> void:
 		str(resources.get("oxygen", "--")),
 		str(resources.get("power", "--")),
 		str(snapshot.get("mistakes", 0)),
+		initial_trust,
+		final_trust,
+		trust_sign,
+		trust_change,
 		str(debrief.get("relationship", "保持专业")),
 	]
-	_outcome_dialog.popup_centered(Vector2i(620, 520))
+	var viewport_size := get_viewport_rect().size
+	_outcome_dialog.popup_centered(Vector2i(
+		mini(700, maxi(520, int(viewport_size.x) - 48)),
+		mini(620, maxi(460, int(viewport_size.y) - 48))
+	))
 
 
 func reset_console() -> void:
@@ -489,10 +542,19 @@ func _build_header(parent: VBoxContainer) -> void:
 
 
 func _build_body(parent: VBoxContainer) -> void:
+	_body_scroll = ScrollContainer.new()
+	_body_scroll.name = "MissionBodyScroll"
+	_body_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_body_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_body_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_body_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	parent.add_child(_body_scroll)
 	_body = HBoxContainer.new()
+	_body.name = "MissionBody"
+	_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_body.add_theme_constant_override("separation", 8)
-	parent.add_child(_body)
+	_body_scroll.add_child(_body)
 	_build_left_column(_body)
 	_build_center_column(_body)
 	_build_right_column(_body)
@@ -553,17 +615,17 @@ func _build_left_column(parent: HBoxContainer) -> void:
 func _build_center_column(parent: HBoxContainer) -> void:
 	var box := _section(parent, "林岚 / 远程画面", Vector2(0, 0))
 	(box.get_parent().get_parent() as Control).size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var upper := HBoxContainer.new()
-	upper.custom_minimum_size.y = 250
-	upper.add_theme_constant_override("separation", 10)
-	box.add_child(upper)
+	_center_upper = HBoxContainer.new()
+	_center_upper.custom_minimum_size.y = 250
+	_center_upper.add_theme_constant_override("separation", 10)
+	box.add_child(_center_upper)
 	_portrait = PortraitClass.new()
 	_portrait.custom_minimum_size = Vector2(220, 250)
-	upper.add_child(_portrait)
+	_center_upper.add_child(_portrait)
 	var identity := VBoxContainer.new()
 	identity.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	identity.add_theme_constant_override("separation", 7)
-	upper.add_child(identity)
+	_center_upper.add_child(identity)
 	_npc_name = Label.new()
 	_npc_name.text = "林岚"
 	_npc_name.add_theme_font_size_override("font_size", 25)
@@ -628,6 +690,13 @@ func _build_right_column(parent: HBoxContainer) -> void:
 		_quick_box.add_child(button)
 	var separator := HSeparator.new()
 	box.add_child(separator)
+	# Authorization is a time-critical control. Keep it above the evidence scroller
+	# so it cannot disappear below long telemetry on a laptop-sized viewport.
+	_candidate_separator = HSeparator.new()
+	box.add_child(_candidate_separator)
+	_candidate_header = _small_header("行动授权")
+	box.add_child(_candidate_header)
+	_build_candidate_card(box)
 	_evidence_scroll = ScrollContainer.new()
 	_evidence_scroll.custom_minimum_size.y = 160
 	_evidence_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -652,11 +721,6 @@ func _build_right_column(parent: HBoxContainer) -> void:
 	privacy.add_theme_font_size_override("font_size", 10)
 	privacy.add_theme_color_override("font_color", Color(COLOR_MUTED, 0.78))
 	evidence_box.add_child(privacy)
-	_candidate_separator = HSeparator.new()
-	box.add_child(_candidate_separator)
-	_candidate_header = _small_header("行动授权")
-	box.add_child(_candidate_header)
-	_build_candidate_card(box)
 
 
 func _build_clue_workbench(parent: VBoxContainer) -> void:
@@ -741,11 +805,12 @@ func _build_candidate_card(parent: VBoxContainer) -> void:
 
 
 func _build_composer(parent: VBoxContainer) -> void:
-	var panel := PanelContainer.new()
-	panel.custom_minimum_size.y = 90
-	parent.add_child(panel)
+	_composer_panel = PanelContainer.new()
+	_composer_panel.name = "PersistentComposer"
+	_composer_panel.custom_minimum_size.y = 90
+	parent.add_child(_composer_panel)
 	var margin := _margin(10, 8)
-	panel.add_child(margin)
+	_composer_panel.add_child(margin)
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 4)
 	margin.add_child(column)
@@ -1603,11 +1668,31 @@ func _apply_responsive_layout() -> void:
 	# Use the actual visible viewport rather than this control's computed minimum
 	# size. The three columns can otherwise make `size.x` wider than the window,
 	# preventing the compact branch precisely when the right rail is clipped.
-	var viewport_width := get_viewport_rect().size.x
+	var viewport_size := get_viewport_rect().size
+	var viewport_width := viewport_size.x
+	var viewport_height := viewport_size.y
 	var compact := viewport_width < 1440.0
+	var short_view := viewport_height < 900.0
 	_left_panel.custom_minimum_size.x = 350.0 if compact else 400.0
 	_right_panel.custom_minimum_size.x = 280.0 if compact else 312.0
-	_portrait.custom_minimum_size.x = 180.0 if compact else 220.0
+	_portrait.custom_minimum_size = Vector2(
+		180.0 if compact else 220.0,
+		190.0 if short_view else 250.0
+	)
+	if is_instance_valid(_center_upper):
+		_center_upper.custom_minimum_size.y = 190.0 if short_view else 250.0
+	if is_instance_valid(_facility_map):
+		_facility_map.custom_minimum_size.y = 135.0 if short_view else 200.0
+	if is_instance_valid(_objective_text):
+		_objective_text.custom_minimum_size.y = 92.0 if short_view else 150.0
+	if is_instance_valid(_npc_observation):
+		_npc_observation.custom_minimum_size.y = 84.0 if short_view else 126.0
+	if is_instance_valid(_evidence_scroll):
+		_evidence_scroll.custom_minimum_size.y = 86.0 if short_view else 160.0
+	if is_instance_valid(_candidate_panel):
+		_candidate_panel.custom_minimum_size.y = 118.0 if short_view else 136.0
+	if is_instance_valid(_composer_panel):
+		_composer_panel.custom_minimum_size.y = 82.0 if short_view else 90.0
 	if is_instance_valid(_settings_button):
 		_settings_button.text = "⚙" if viewport_width < 1080.0 else "⚙  SETTINGS"
 
