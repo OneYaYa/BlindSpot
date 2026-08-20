@@ -16,7 +16,10 @@ import sys
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
+
+from local_credentials import delete_online_config, load_online_config, save_online_config
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -181,12 +184,13 @@ def load_settings() -> Settings:
     # controlled test builds can include a ready-to-use provider configuration.
     for directory in _configuration_directories():
         _load_env_file(directory / ".env")
-    api_key = os.getenv("OPENAI_API_KEY") or os.getenv("LLM_API_KEY", "")
+    local_config = load_online_config()
+    api_key = os.getenv("OPENAI_API_KEY") or os.getenv("LLM_API_KEY", "") or local_config.get("api_key", "")
     base_url = os.getenv("OPENAI_BASE_URL") or os.getenv(
-        "LLM_BASE_URL", "https://api.openai.com/v1"
+        "LLM_BASE_URL", local_config.get("base_url", "https://api.openai.com/v1")
     )
-    model = os.getenv("OPENAI_MODEL") or os.getenv("LLM_MODEL", DEFAULT_MODEL)
-    effort = os.getenv("OPENAI_REASONING_EFFORT", "low").lower()
+    model = os.getenv("OPENAI_MODEL") or os.getenv("LLM_MODEL", local_config.get("model", DEFAULT_MODEL))
+    effort = os.getenv("OPENAI_REASONING_EFFORT", local_config.get("reasoning_effort", "low")).lower()
     if effort not in {"none", "minimal", "low", "medium", "high", "xhigh", "max"}:
         effort = "low"
     host = os.getenv("BLINDSPOT_HOST", "127.0.0.1")
@@ -972,6 +976,56 @@ def decide(payload: Any, settings: Settings, opener: UrlOpen = urllib.request.ur
     return {"ok": True, "provider": "openai", "model": settings.model, "trace": trace, "usage": usage, "decision": decision}
 
 
+LOCAL_SETUP_PAGE = """<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Blindspot Relay — 在线 AI 配置</title>
+  <style>
+    :root{color-scheme:dark;background:#071318;color:#d6e5e3;font:16px/1.55 "Microsoft YaHei UI",sans-serif}
+    body{margin:0;min-height:100vh;display:grid;place-items:center;background:radial-gradient(circle at top,#12313a,#071318 58%)}
+    main{width:min(620px,calc(100% - 40px));padding:30px;border:1px solid #34626a;background:#0b1b21;box-shadow:0 18px 60px #0008}
+    h1{margin:0 0 8px;color:#e5ba65;font-size:26px} p{margin:7px 0 20px;color:#9eb5b5}
+    label{display:block;margin:14px 0 5px;color:#7fd1c7;font-size:14px}
+    input,select{box-sizing:border-box;width:100%;padding:11px;border:1px solid #355861;background:#071318;color:#e8f1ef;font:inherit}
+    .key{display:grid;grid-template-columns:1fr auto;gap:8px}.key button{padding:0 14px}
+    button{border:1px solid #4c777d;background:#123039;color:#e7f1ef;padding:10px 17px;cursor:pointer;font:inherit}
+    button.primary{background:#17635c;border-color:#65c5b7}.actions{display:flex;justify-content:flex-end;gap:10px;margin-top:22px}
+    #status{padding:10px 12px;border-left:3px solid #d9a851;background:#0e252b;color:#c6d8d6}
+    small{display:block;margin-top:18px;color:#738e91}.danger{color:#e59a8f} code{color:#8ed1c8}
+  </style>
+</head>
+<body><main>
+  <h1>BLINDSPOT RELAY</h1>
+  <p>连接你自己的在线 AI。Key 只提交给这台电脑上的本地代理，使用 Windows DPAPI 加密后绑定当前 Windows 账户；不会进入 Godot、日志或 GitHub。</p>
+  <div id="status">正在读取本机配置……</div>
+  <label for="key">API Key</label>
+  <div class="key"><input id="key" type="password" autocomplete="off" placeholder="粘贴你自己的 API Key"><button id="show" type="button">显示</button></div>
+  <label for="base">API 地址</label><input id="base" value="https://api.openai.com/v1">
+  <label for="model">模型</label><input id="model" value="gpt-5.6-luna">
+  <label for="effort">推理强度</label><select id="effort"><option>minimal</option><option selected>low</option><option>medium</option><option>high</option></select>
+  <div class="actions"><button id="remove" class="danger" type="button">删除本机配置</button><button id="save" class="primary" type="button">保存并启用</button></div>
+  <small>配置页仅在游戏的本地代理运行时可用：<code>127.0.0.1</code>。关闭此页面不会影响本地 NPC 模式。</small>
+</main><script>
+const $=id=>document.getElementById(id), status=$('status'), key=$('key');
+async function request(body){
+  const response=await fetch('/api/local-config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const data=await response.json(); if(!response.ok) throw new Error(data.error||'请求失败'); return data;
+}
+async function refresh(){
+  try{const r=await fetch('/api/local-config/status'),d=await r.json();
+    status.textContent=d.player_configured?`已保存玩家配置；当前模型：${d.model}`:'当前未保存玩家 Key；游戏正在使用本地 NPC 模式。';
+    if(d.base_url)$('base').value=d.base_url;if(d.model)$('model').value=d.model;if(d.reasoning_effort)$('effort').value=d.reasoning_effort;
+  }catch(e){status.textContent='无法读取配置状态：'+e.message}
+}
+$('show').onclick=()=>{const visible=key.type==='text';key.type=visible?'password':'text';$('show').textContent=visible?'显示':'隐藏'};
+$('save').onclick=async()=>{try{status.textContent='正在加密并保存……';const d=await request({action:'save',api_key:key.value,base_url:$('base').value,model:$('model').value,reasoning_effort:$('effort').value});key.value='';status.textContent=`配置已加密保存并立即启用；当前模型：${d.model}`;}catch(e){status.textContent='保存失败：'+e.message}};
+$('remove').onclick=async()=>{if(!confirm('删除当前 Windows 账户保存的在线 AI 配置？'))return;try{await request({action:'delete'});key.value='';await refresh()}catch(e){status.textContent='删除失败：'+e.message}};
+refresh();
+</script></body></html>"""
+
+
 class BlindspotHandler(BaseHTTPRequestHandler):
     server_version = "BlindspotRelay/0.4"
 
@@ -980,6 +1034,28 @@ class BlindspotHandler(BaseHTTPRequestHandler):
         return not origin or re.fullmatch(
             r"https?://(?:127\.0\.0\.1|localhost)(?::\d+)?", origin
         ) is not None
+
+    def _setup_request_allowed(self) -> bool:
+        settings: Settings = self.server.settings  # type: ignore[attr-defined]
+        if settings.host not in {"127.0.0.1", "localhost", "::1"}:
+            return False
+        if self.client_address[0] not in {"127.0.0.1", "::1"}:
+            return False
+        host = self.headers.get("Host", "")
+        try:
+            host_name = urllib.parse.urlsplit("//" + host).hostname
+        except ValueError:
+            return False
+        if host_name not in {"127.0.0.1", "localhost", "::1"}:
+            return False
+        origin = self.headers.get("Origin", "")
+        if not origin:
+            return True
+        try:
+            parsed_origin = urllib.parse.urlsplit(origin)
+        except ValueError:
+            return False
+        return parsed_origin.scheme == "http" and parsed_origin.netloc.lower() == host.lower()
 
     def _within_rate_limit(self) -> bool:
         settings: Settings = self.server.settings  # type: ignore[attr-defined]
@@ -1008,6 +1084,83 @@ class BlindspotHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _write_html(self, status: int, html: str) -> None:
+        body = html.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header(
+            "Content-Security-Policy",
+            "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; form-action 'none'",
+        )
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _read_json_payload(self) -> dict[str, Any]:
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError as exc:
+            raise ValueError("invalid request size") from exc
+        if length <= 0 or length > MAX_BODY_BYTES:
+            raise ValueError("invalid request size")
+        payload = json.loads(self.rfile.read(length).decode("utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError("expected a JSON object")
+        return payload
+
+    def _reload_effective_settings(self) -> Settings:
+        current: Settings = self.server.settings  # type: ignore[attr-defined]
+        loaded = load_settings()
+        updated = Settings(
+            loaded.api_key,
+            loaded.base_url,
+            loaded.model,
+            loaded.reasoning_effort,
+            current.host,
+            current.port,
+            current.max_requests_per_minute,
+        )
+        self.server.settings = updated  # type: ignore[attr-defined]
+        return updated
+
+    def _handle_local_config(self) -> None:
+        if not self._setup_request_allowed():
+            self._write_json(403, {"ok": False, "error": "local setup is not available for this request"})
+            return
+        if not self._within_rate_limit():
+            self._write_json(429, {"ok": False, "error": "rate limit exceeded"})
+            return
+        try:
+            payload = self._read_json_payload()
+            action = str(payload.get("action", "save"))
+            if action == "delete":
+                delete_online_config()
+            elif action == "save":
+                save_online_config(
+                    str(payload.get("api_key", "")),
+                    str(payload.get("base_url", "https://api.openai.com/v1")),
+                    str(payload.get("model", DEFAULT_MODEL)),
+                    str(payload.get("reasoning_effort", "low")),
+                )
+            else:
+                raise ValueError("unknown configuration action")
+            settings = self._reload_effective_settings()
+        except (OSError, ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            self._write_json(400, {"ok": False, "error": str(exc)})
+            return
+        self._write_json(
+            200,
+            {
+                "ok": True,
+                "configured": settings.configured,
+                "player_configured": bool(load_online_config()),
+                "model": settings.model,
+            },
+        )
+
     def do_OPTIONS(self) -> None:  # noqa: N802
         if not self._origin_allowed():
             self._write_json(403, {"ok": False, "error": "origin not allowed"})
@@ -1015,7 +1168,32 @@ class BlindspotHandler(BaseHTTPRequestHandler):
         self._write_json(204, {})
 
     def do_GET(self) -> None:  # noqa: N802
-        if self.path.rstrip("/") != "/health":
+        path = urllib.parse.urlsplit(self.path).path.rstrip("/") or "/"
+        if path == "/setup":
+            if not self._setup_request_allowed():
+                self._write_json(403, {"ok": False, "error": "local setup is not available for this request"})
+                return
+            self._write_html(200, LOCAL_SETUP_PAGE)
+            return
+        if path == "/api/local-config/status":
+            if not self._setup_request_allowed():
+                self._write_json(403, {"ok": False, "error": "local setup is not available for this request"})
+                return
+            settings: Settings = self.server.settings  # type: ignore[attr-defined]
+            player_config = load_online_config()
+            self._write_json(
+                200,
+                {
+                    "ok": True,
+                    "configured": settings.configured,
+                    "player_configured": bool(player_config),
+                    "base_url": player_config.get("base_url", settings.base_url),
+                    "model": player_config.get("model", settings.model),
+                    "reasoning_effort": player_config.get("reasoning_effort", settings.reasoning_effort),
+                },
+            )
+            return
+        if path != "/health":
             self._write_json(404, {"ok": False, "error": "not found"})
             return
         settings: Settings = self.server.settings  # type: ignore[attr-defined]
@@ -1042,7 +1220,11 @@ class BlindspotHandler(BaseHTTPRequestHandler):
         )
 
     def do_POST(self) -> None:  # noqa: N802
-        if self.path.rstrip("/") != "/api/npc/decide":
+        path = urllib.parse.urlsplit(self.path).path.rstrip("/") or "/"
+        if path == "/api/local-config":
+            self._handle_local_config()
+            return
+        if path != "/api/npc/decide":
             self._write_json(404, {"ok": False, "error": "not found"})
             return
         if not self._origin_allowed():
@@ -1055,14 +1237,7 @@ class BlindspotHandler(BaseHTTPRequestHandler):
         with self.server.metrics_lock:  # type: ignore[attr-defined]
             self.server.metrics["requests"] += 1  # type: ignore[attr-defined]
         try:
-            length = int(self.headers.get("Content-Length", "0"))
-        except ValueError:
-            length = 0
-        if length <= 0 or length > MAX_BODY_BYTES:
-            self._write_json(413, {"ok": False, "error": "invalid request size"})
-            return
-        try:
-            payload = json.loads(self.rfile.read(length).decode("utf-8"))
+            payload = self._read_json_payload()
             settings: Settings = self.server.settings  # type: ignore[attr-defined]
             result = decide(payload, settings)
         except (ValueError, json.JSONDecodeError, UnicodeDecodeError) as exc:

@@ -11,6 +11,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+import webbrowser
 
 
 APP_TITLE = "Blindspot Relay"
@@ -163,8 +164,16 @@ def main() -> int:
             "诊断日志位于：%LOCALAPPDATA%\\BlindspotRelay\\logs\\relay.log"
         )
     elif not bool(health.get("configured", False)):
+        setup_url = f"http://127.0.0.1:{_relay_port()}/setup"
+        try:
+            webbrowser.open(setup_url)
+        except webbrowser.Error:
+            pass
         _show_message(
-            "发行包未配置在线模型凭据，游戏将使用完整的本地 NPC 模式。"
+            "当前未配置在线模型凭据，已在浏览器打开本机配置页。\n\n"
+            "你可以粘贴自己的 API Key 并立即启用在线 AI，或关闭页面继续使用"
+            "完整的本地 NPC 模式。\n\n"
+            f"配置页：{setup_url}"
         )
 
     try:

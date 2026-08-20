@@ -28,6 +28,12 @@ def _request_json(url: str, *, body: dict[str, object] | None = None, timeout: f
     return payload
 
 
+def _request_text(url: str, *, timeout: float = 2.0) -> str:
+    request = urllib.request.Request(url, headers={"Accept": "text/html"})
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return response.read().decode("utf-8")
+
+
 def _wait_for_health(port: int, timeout: float = 30.0) -> dict[str, object]:
     deadline = time.monotonic() + timeout
     url = f"http://127.0.0.1:{port}/health"
@@ -144,6 +150,58 @@ def main() -> int:
     runtime_dir = smoke_root / "_runtime"
     relay = runtime_dir / "BlindspotRelayServer.exe"
     launcher = smoke_root / "BlindspotRelay.exe"
+
+    setup_port = 18786
+    setup_environment = os.environ.copy()
+    for key in (
+        "OPENAI_API_KEY", "LLM_API_KEY", "OPENAI_BASE_URL", "LLM_BASE_URL",
+        "OPENAI_MODEL", "LLM_MODEL", "OPENAI_REASONING_EFFORT",
+    ):
+        setup_environment.pop(key, None)
+    setup_environment["LOCALAPPDATA"] = str(smoke_root / "isolated-player-profile")
+    setup_process = subprocess.Popen(
+        [str(relay), "--host", "127.0.0.1", "--port", str(setup_port)],
+        cwd=runtime_dir,
+        env=setup_environment,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    try:
+        setup_health_before = _wait_for_health(setup_port)
+        if setup_health_before.get("configured"):
+            raise RuntimeError("Fresh player profile unexpectedly contains an online AI credential")
+        setup_page = _request_text(f"http://127.0.0.1:{setup_port}/setup")
+        if "Blindspot Relay" not in setup_page or "API Key" not in setup_page:
+            raise RuntimeError("Local online AI setup page is incomplete")
+        setup_saved = _request_json(
+            f"http://127.0.0.1:{setup_port}/api/local-config",
+            body={
+                "action": "save",
+                "api_key": "sk-smoke-local-player-credential",
+                "base_url": "https://api.openai.com/v1",
+                "model": "gpt-5.6-luna",
+                "reasoning_effort": "low",
+            },
+        )
+        if not setup_saved.get("configured"):
+            raise RuntimeError("Local setup page did not activate the encrypted player credential")
+    finally:
+        _stop_process_tree(setup_process)
+
+    setup_check = subprocess.run(
+        [str(relay), "--check"],
+        cwd=runtime_dir,
+        env=setup_environment,
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=30.0,
+    )
+    if not json.loads(setup_check.stdout.strip()).get("configured"):
+        raise RuntimeError("Packaged relay could not decrypt the saved player credential")
     safe_check = subprocess.run(
         [str(relay), "--check"],
         cwd=runtime_dir,
@@ -214,6 +272,7 @@ def main() -> int:
         "relay_cleaned": relay_cleaned,
         "launcher_exit_code": launcher_result.returncode,
         "launcher_relay_cleaned": launcher_relay_cleaned,
+        "local_setup_page": "passed",
         "zip_size": zip_path.stat().st_size,
         "zip_sha256": hashlib.sha256(zip_path.read_bytes()).hexdigest(),
     }

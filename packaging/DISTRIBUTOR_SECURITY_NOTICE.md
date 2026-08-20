@@ -12,4 +12,7 @@
 - 为发行构建使用可随时轮换的独立项目密钥。
 
 不加 `-EmbedApiCredential` 时，发行包不会内置 `.env`；游戏依然能以本地 NPC
-模式完整游玩，也可以在入口 EXE 同级或 `_runtime` 目录放置 `.env` 来启用在线 AI。
+模式完整游玩。公开 Windows 包会通过仅监听 `127.0.0.1` 的本机配置页接收玩家
+自己的 Key，再用 Windows DPAPI 加密并绑定当前系统账户，保存在
+`%LOCALAPPDATA%\BlindspotRelay`；也可以继续在入口 EXE 同级或 `_runtime` 目录
+放置 `.env` 供受控测试使用。

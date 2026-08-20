@@ -6,7 +6,7 @@ Blindspot Relay 可以完全离线运行。玩家可在游戏右上角的设置�
 
 不会发送：OpenAI API Key、调度员独占遥测、全局谜题答案、其他房间的隐藏状态、完整存档或本机文件。Prompt trace 的配额、裁剪原因和 trace ID 保留在本地调试平面，发送给模型前会移除；代理只计算不可逆推出原文的短 Prompt hash。代理使用 Responses API 的 `store: false`，对话记忆由本地游戏会话管理，重开任务会清除。
 
-API Key 只由 `server.py` 从本机环境或 `.env` 读取。Godot 客户端不会收到或保存 Key。正式托管版本应在发布前补充运营方、数据保留期、地域、未成年人政策和删除渠道。
+API Key 只由本地代理从进程环境、受控 `.env` 或玩家本地配置读取。Windows 发行包会在未配置时打开仅限本机 `127.0.0.1` 的设置页；玩家提交的 Key 直接进入本地代理，由 Windows DPAPI 加密并保存到 `%LOCALAPPDATA%\BlindspotRelay\online_ai.json`，密文绑定当前 Windows 账户。配置接口只在代理绑定回环地址时启用，并校验 Host 与同源 Origin。Godot 客户端不会收到或保存 Key，日志也不会记录 Key。玩家可用同一本机页面删除凭据。正式托管版本应在发布前补充运营方、数据保留期、地域、未成年人政策和删除渠道。
 
 本机设置保存在 `user://blindspot_settings.cfg`。删除该文件即可重置字号、音量、减少动态、在线模式和安全动作快速授权偏好。通讯耗氧周期、信任、恐惧和线索工作台固定内容仅存在于当前任务会话。
 

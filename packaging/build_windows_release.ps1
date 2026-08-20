@@ -10,7 +10,7 @@ $BuildRoot = Join-Path $ProjectRoot ("build\release_work\" + [DateTime]::Now.ToS
 $StageRoot = Join-Path $BuildRoot "BlindspotRelay-Windows"
 $RuntimeRoot = Join-Path $StageRoot "_runtime"
 $ReleaseRoot = Join-Path $ProjectRoot "build\releases"
-$ZipPath = Join-Path $ReleaseRoot "BlindspotRelay-Windows-v0.5.0.zip"
+$ZipPath = Join-Path $ReleaseRoot "BlindspotRelay-Windows-v0.5.1.zip"
 
 function Assert-ProjectChild([string]$PathToCheck) {
     $projectPrefix = $ProjectRoot.TrimEnd('\') + '\'

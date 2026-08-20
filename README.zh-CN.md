@@ -56,7 +56,7 @@ K-17 设施正在失效。你是远程调度员，能读取残缺的全局遥测
 
 ### Windows：目前最适合公开发布
 
-公开 v0.5.0 Windows 试玩版已发布到 [GitHub Releases](https://github.com/OneYaYa/BlindSpot/releases/tag/v0.5.0)。下载 `BlindspotRelay-Windows-v0.5.0.zip`，完整解压后运行 `BlindspotRelay.exe`。发行包已经包含 Godot 运行时与本地代理，玩家不需要安装 Godot 或 Python。压缩包不包含 API Key；没有在线模型时，本地规则仍可完整通关。
+公开 v0.5.1 Windows 试玩版已发布到 [GitHub Releases](https://github.com/OneYaYa/BlindSpot/releases/tag/v0.5.1)。下载 `BlindspotRelay-Windows-v0.5.1.zip`，完整解压后运行 `BlindspotRelay.exe`。发行包已经包含 Godot 运行时与本地代理，玩家不需要安装 Godot 或 Python。压缩包不包含开发者 API Key；没有在线模型时，本地规则仍可完整通关。未配置在线服务时，启动器会自动打开仅限本机的配置页，玩家可填入自己的 Key；凭据会使用 Windows DPAPI 加密并绑定当前系统账户。
 
 ### 浏览器：计划中的低门槛版本
 
